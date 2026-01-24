@@ -1,0 +1,17 @@
+.DS_Store
+DerivedData/
+*.xcuserdatad/
+*.xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+*.swp
+.idea/
+.vscode/
+
+.build/
+Pods/
+Carthage/Build/
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/
