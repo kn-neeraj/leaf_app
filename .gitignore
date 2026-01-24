@@ -15,3 +15,5 @@ Carthage/Build/
 fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/
+
+profiler_files/
