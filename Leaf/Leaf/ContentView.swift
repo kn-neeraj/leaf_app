@@ -6,7 +6,6 @@
 //
 
 import AppKit
-import Markdown
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -17,17 +16,9 @@ struct ContentView: View {
         .plainText
     ]
 
+    @StateObject private var documentStore = DocumentStore()
     @State private var zoomScale: CGFloat = 1.0
-    @State private var fileName: String = "Untitled"
-    @State private var fileContent: String = ""
-    @State private var statusMessage: String?
     @State private var isFileImporterPresented = false
-    @State private var document: Document?
-    @State private var renderSegments: [RenderSegment] = []
-    @State private var isLoading = false
-    @State private var renderToken = UUID()
-    @State private var fileURL: URL?
-    @State private var securityScopedURL: URL?
     @State private var selectedThemeID: LeafTheme.ThemeID
     @State private var isThemeSwitcherPresented = false
     @State private var themeShortcutMonitor: Any?
@@ -56,61 +47,33 @@ struct ContentView: View {
         LeafTheme.metrics(scale: zoomScale)
     }
 
-    var body: some View {
-        ZStack(alignment: .trailing) {
-            colors.background
-                .ignoresSafeArea()
-            ScrollView {
-                HStack {
-                    Spacer(minLength: 0)
-                    VStack(alignment: .leading, spacing: metrics.paragraphSpacing) {
-                        if let statusMessage = statusMessage {
-                            Text(statusMessage)
-                                .font(.system(size: max(12, metrics.bodyFontSize * 0.875)))
-                                .foregroundStyle(colors.secondary)
-                        }
+    private var renderKey: RenderKey {
+        RenderKey(themeID: selectedThemeID, zoomScale: zoomScale)
+    }
 
-                        if fileContent.isEmpty {
-                            Text("Open a Markdown file to begin.")
-                                .font(.system(size: metrics.bodyFontSize * 1.125, weight: .semibold))
-                                .foregroundStyle(colors.secondary)
-                        } else {
-                            if document != nil {
-                                MarkdownSegmentedView(
-                                    segments: renderSegments,
-                                    colors: colors,
-                                    metrics: metrics
-                                )
-                            } else {
-                                Text(fileContent)
-                                    .font(.system(size: metrics.bodyFontSize))
-                                    .foregroundStyle(colors.text)
-                            }
-                        }
-                    }
-                    .frame(maxWidth: metrics.contentMaxWidth, alignment: .leading)
-                    .padding(.vertical, metrics.verticalPadding)
-                    .padding(.horizontal, 24)
-                    Spacer(minLength: 0)
-                }
-            }
-            if isLoading {
-                LoadingOverlayView(colors: colors, metrics: metrics)
-                    .transition(.opacity)
-                    .zIndex(1)
-            }
-            if isThemeSwitcherPresented {
-                ThemeSwitcherOverlay(
-                    themes: LeafTheme.themes,
-                    selectedThemeID: $selectedThemeID,
-                    isPresented: $isThemeSwitcherPresented
+    private var selectedDocument: OpenDocument? {
+        documentStore.documents.first { $0.id == documentStore.selectedID }
+    }
+
+    private var selectionBinding: Binding<UUID?> {
+        Binding(
+            get: { documentStore.selectedID },
+            set: { newValue in
+                documentStore.select(
+                    id: newValue,
+                    renderKey: renderKey,
+                    colors: colors,
+                    metrics: metrics
                 )
-                .frame(width: 360)
-                .padding(.vertical, 24)
-                .padding(.trailing, 24)
-        .transition(.move(edge: .trailing).combined(with: .opacity))
-        .zIndex(2)
             }
+        )
+    }
+
+    var body: some View {
+        NavigationSplitView {
+            sidebarView
+        } detail: {
+            detailView
         }
         .frame(minWidth: 700, minHeight: 500)
         .preferredColorScheme(theme.isDark ? .dark : .light)
@@ -121,7 +84,7 @@ struct ContentView: View {
         })
         .toolbar {
             ToolbarItem(placement: .principal) {
-                Text(fileName)
+                Text(selectedDocument?.displayName ?? "Untitled")
                     .font(.headline)
                     .foregroundStyle(colors.text)
             }
@@ -129,7 +92,7 @@ struct ContentView: View {
                 Button(action: openFile) {
                     Image(systemName: "folder")
                 }
-                .help("Open Markdown File")
+                .help("Open Markdown Files")
                 .keyboardShortcut("o", modifiers: [.command])
 
                 Button(action: zoomOut) {
@@ -165,95 +128,143 @@ struct ContentView: View {
         .fileImporter(
             isPresented: $isFileImporterPresented,
             allowedContentTypes: allowedTypes,
-            allowsMultipleSelection: false
+            allowsMultipleSelection: true
         ) { result in
             switch result {
             case .success(let urls):
-                if let url = urls.first {
-                    loadFile(from: url)
+                if !urls.isEmpty {
+                    documentStore.open(
+                        urls: urls,
+                        renderKey: renderKey,
+                        colors: colors,
+                        metrics: metrics
+                    )
                 }
             case .failure:
-                statusMessage = "Unable to open file."
+                break
             }
         }
         .onOpenURL { url in
-            loadFile(from: url)
+            documentStore.open(
+                urls: [url],
+                renderKey: renderKey,
+                colors: colors,
+                metrics: metrics
+            )
         }
         .onChange(of: zoomScale) { _, _ in
-            rebuildRenderContent()
+            documentStore.refreshSelected(
+                renderKey: renderKey,
+                colors: colors,
+                metrics: metrics
+            )
         }
         .onChange(of: selectedThemeID) { _, _ in
             UserDefaults.standard.set(selectedThemeID.rawValue, forKey: Self.themeStorageKey)
-            rebuildRenderContent()
+            documentStore.refreshSelected(
+                renderKey: renderKey,
+                colors: colors,
+                metrics: metrics
+            )
         }
         .onAppear {
             setupThemeShortcutMonitor()
         }
         .onDisappear {
             tearDownThemeShortcutMonitor()
+            documentStore.releaseAllSecurityScopedAccess()
+        }
+    }
+
+    private var sidebarView: some View {
+        ZStack {
+            List(selection: selectionBinding) {
+                ForEach(documentStore.documents) { document in
+                    SidebarRow(document: document, colors: colors)
+                        .tag(document.id)
+                        .contextMenu {
+                            Button("Close") {
+                                documentStore.close(id: document.id)
+                            }
+                        }
+                }
+            }
+            .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)
+
+            if documentStore.documents.isEmpty {
+                Text("No open files")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(colors.secondary)
+            }
+        }
+        .background(colors.background)
+    }
+
+    private var detailView: some View {
+        ZStack(alignment: .trailing) {
+            colors.background
+                .ignoresSafeArea()
+            ScrollView {
+                HStack {
+                    Spacer(minLength: 0)
+                    VStack(alignment: .leading, spacing: metrics.paragraphSpacing) {
+                        if let document = selectedDocument {
+                            if let statusMessage = document.statusMessage {
+                                Text(statusMessage)
+                                    .font(.system(size: max(12, metrics.bodyFontSize * 0.875)))
+                                    .foregroundStyle(colors.secondary)
+                            } else if document.isLoading {
+                                EmptyView()
+                            } else if document.content.isEmpty {
+                                Text("Empty document.")
+                                    .font(.system(size: metrics.bodyFontSize * 1.125, weight: .semibold))
+                                    .foregroundStyle(colors.secondary)
+                            } else if document.parsed != nil {
+                                MarkdownSegmentedView(
+                                    segments: document.segments,
+                                    colors: colors,
+                                    metrics: metrics
+                                )
+                            } else {
+                                Text(document.content)
+                                    .font(.system(size: metrics.bodyFontSize))
+                                    .foregroundStyle(colors.text)
+                            }
+                        } else {
+                            Text("Open a Markdown file to begin.")
+                                .font(.system(size: metrics.bodyFontSize * 1.125, weight: .semibold))
+                                .foregroundStyle(colors.secondary)
+                        }
+                    }
+                    .frame(maxWidth: metrics.contentMaxWidth, alignment: .leading)
+                    .padding(.vertical, metrics.verticalPadding)
+                    .padding(.horizontal, 24)
+                    Spacer(minLength: 0)
+                }
+            }
+            if selectedDocument?.isLoading == true {
+                LoadingOverlayView(colors: colors, metrics: metrics)
+                    .transition(.opacity)
+                    .zIndex(1)
+            }
+            if isThemeSwitcherPresented {
+                ThemeSwitcherOverlay(
+                    themes: LeafTheme.themes,
+                    selectedThemeID: $selectedThemeID,
+                    isPresented: $isThemeSwitcherPresented
+                )
+                .frame(width: 360)
+                .padding(.vertical, 24)
+                .padding(.trailing, 24)
+                .transition(.move(edge: .trailing).combined(with: .opacity))
+                .zIndex(2)
+            }
         }
     }
 
     private func openFile() {
         isFileImporterPresented = true
-    }
-
-    private func loadFile(from url: URL) {
-        statusMessage = nil
-        startLoading()
-        releaseSecurityScopedAccess()
-
-        let token = renderToken
-        let currentColors = colors
-        let currentMetrics = metrics
-        let baseURL = url.deletingLastPathComponent()
-
-        DispatchQueue.global(qos: .userInitiated).async {
-            let didStartAccessing = url.startAccessingSecurityScopedResource()
-
-            do {
-                let data = try Data(contentsOf: url)
-                let content = String(decoding: data, as: UTF8.self)
-                let parsedDocument = Document(parsing: content)
-                let segments = MarkdownRenderBuilder.buildSegments(
-                    document: parsedDocument,
-                    colors: currentColors,
-                    metrics: currentMetrics,
-                    baseURL: baseURL
-                )
-                DispatchQueue.main.async {
-                    guard renderToken == token else { return }
-                    fileContent = content
-                    document = parsedDocument
-                    fileName = url.lastPathComponent
-                    renderSegments = segments
-                    fileURL = url
-                    if didStartAccessing {
-                        securityScopedURL = url
-                    }
-                    statusMessage = nil
-                    isLoading = false
-                }
-            } catch {
-                DispatchQueue.main.async {
-                    guard renderToken == token else { return }
-                    fileContent = ""
-                    document = nil
-                    renderSegments = []
-                    fileName = url.lastPathComponent
-                    fileURL = nil
-                    statusMessage = "Unable to open file."
-                    isLoading = false
-                    if didStartAccessing {
-                        url.stopAccessingSecurityScopedResource()
-                    }
-                }
-            }
-
-            if renderToken != token, didStartAccessing {
-                url.stopAccessingSecurityScopedResource()
-            }
-        }
     }
 
     private func zoomOut() {
@@ -262,44 +273,6 @@ struct ContentView: View {
 
     private func zoomIn() {
         zoomScale = min(1.6, zoomScale + 0.1)
-    }
-
-    private func rebuildRenderContent() {
-        guard let document else {
-            renderSegments = []
-            return
-        }
-        startLoading()
-        let token = renderToken
-        let currentColors = colors
-        let currentMetrics = metrics
-        let baseURL = fileURL?.deletingLastPathComponent()
-
-        DispatchQueue.global(qos: .userInitiated).async {
-            let segments = MarkdownRenderBuilder.buildSegments(
-                document: document,
-                colors: currentColors,
-                metrics: currentMetrics,
-                baseURL: baseURL
-            )
-            DispatchQueue.main.async {
-                guard renderToken == token else { return }
-                renderSegments = segments
-                isLoading = false
-            }
-        }
-    }
-
-    private func startLoading() {
-        renderToken = UUID()
-        isLoading = true
-    }
-
-    private func releaseSecurityScopedAccess() {
-        if let url = securityScopedURL {
-            url.stopAccessingSecurityScopedResource()
-            securityScopedURL = nil
-        }
     }
 
     private func setupThemeShortcutMonitor() {
@@ -330,7 +303,6 @@ struct ContentView: View {
             NSEvent.removeMonitor(monitor)
             themeShortcutMonitor = nil
         }
-        releaseSecurityScopedAccess()
     }
 
     private func cycleTheme() {
@@ -341,6 +313,36 @@ struct ContentView: View {
         }
         let nextIndex = (index + 1) % themeIDs.count
         selectedThemeID = themeIDs[nextIndex]
+    }
+}
+
+struct SidebarRow: View {
+    let document: OpenDocument
+    let colors: LeafTheme.Colors
+
+    var body: some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(document.displayName)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(colors.text)
+                Text(document.locationName)
+                    .font(.system(size: 11))
+                    .foregroundStyle(colors.secondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 0)
+            if document.isLoading {
+                ProgressView()
+                    .controlSize(.mini)
+            } else if document.statusMessage != nil {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(colors.secondary)
+            }
+        }
+        .padding(.vertical, 6)
+        .contentShape(Rectangle())
     }
 }
 

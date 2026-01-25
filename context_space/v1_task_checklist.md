@@ -60,6 +60,15 @@
 - [x] Handle security-scoped file access as needed
 - [x] Basic error state (file not found / unreadable)
 
+## Sidebar and multi-file navigation
+
+- [x] Add sidebar layout with open file list
+- [x] Allow multi-select in Open dialog to add multiple files
+- [x] Switch active document from sidebar selection
+- [x] Close/remove files from the sidebar list
+- [x] Keep toolbar title and content in sync with selected file
+- [x] Track security-scoped access per open file and release on close
+
 ## QA and performance
 
 - [x] Test large documents for performance
