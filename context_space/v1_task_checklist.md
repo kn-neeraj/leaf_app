@@ -3,7 +3,7 @@
 ## Project setup
 
 - [x] Create SwiftUI app project (macOS 15+ target)
-- [ ] Configure app icon
+- [x] Configure app icon
 - [x] Configure bundle metadata (display name, app category)
 - [x] Set up basic window size and content container
 

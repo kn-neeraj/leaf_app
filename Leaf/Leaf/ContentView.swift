@@ -308,8 +308,13 @@ struct ContentView: View {
             let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
             let isTabKey = event.keyCode == 48
             let hasDisallowedModifier = flags.contains(.command) || flags.contains(.option) || flags.contains(.control)
+            let isReturnKey = event.keyCode == 36 || event.keyCode == 76
             if isTabKey, flags.contains(.shift), !hasDisallowedModifier {
                 isThemeSwitcherPresented.toggle()
+                return nil
+            }
+            if isThemeSwitcherPresented, isReturnKey, !hasDisallowedModifier {
+                isThemeSwitcherPresented = false
                 return nil
             }
             if isThemeSwitcherPresented, isTabKey, !hasDisallowedModifier {
