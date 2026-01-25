@@ -26,6 +26,8 @@ struct ContentView: View {
     @State private var renderSegments: [RenderSegment] = []
     @State private var isLoading = false
     @State private var renderToken = UUID()
+    @State private var fileURL: URL?
+    @State private var securityScopedURL: URL?
     @State private var selectedThemeID: LeafTheme.ThemeID
     @State private var isThemeSwitcherPresented = false
     @State private var themeShortcutMonitor: Any?
@@ -113,6 +115,10 @@ struct ContentView: View {
         .frame(minWidth: 700, minHeight: 500)
         .preferredColorScheme(theme.isDark ? .dark : .light)
         .animation(.easeOut(duration: 0.35), value: isThemeSwitcherPresented)
+        .environment(\.openURL, OpenURLAction { url in
+            NSWorkspace.shared.open(url)
+            return .handled
+        })
         .toolbar {
             ToolbarItem(placement: .principal) {
                 Text(fileName)
@@ -195,18 +201,15 @@ struct ContentView: View {
     private func loadFile(from url: URL) {
         statusMessage = nil
         startLoading()
+        releaseSecurityScopedAccess()
 
         let token = renderToken
         let currentColors = colors
         let currentMetrics = metrics
+        let baseURL = url.deletingLastPathComponent()
 
         DispatchQueue.global(qos: .userInitiated).async {
             let didStartAccessing = url.startAccessingSecurityScopedResource()
-            defer {
-                if didStartAccessing {
-                    url.stopAccessingSecurityScopedResource()
-                }
-            }
 
             do {
                 let data = try Data(contentsOf: url)
@@ -215,7 +218,8 @@ struct ContentView: View {
                 let segments = MarkdownRenderBuilder.buildSegments(
                     document: parsedDocument,
                     colors: currentColors,
-                    metrics: currentMetrics
+                    metrics: currentMetrics,
+                    baseURL: baseURL
                 )
                 DispatchQueue.main.async {
                     guard renderToken == token else { return }
@@ -223,6 +227,10 @@ struct ContentView: View {
                     document = parsedDocument
                     fileName = url.lastPathComponent
                     renderSegments = segments
+                    fileURL = url
+                    if didStartAccessing {
+                        securityScopedURL = url
+                    }
                     statusMessage = nil
                     isLoading = false
                 }
@@ -233,9 +241,17 @@ struct ContentView: View {
                     document = nil
                     renderSegments = []
                     fileName = url.lastPathComponent
+                    fileURL = nil
                     statusMessage = "Unable to open file."
                     isLoading = false
+                    if didStartAccessing {
+                        url.stopAccessingSecurityScopedResource()
+                    }
                 }
+            }
+
+            if renderToken != token, didStartAccessing {
+                url.stopAccessingSecurityScopedResource()
             }
         }
     }
@@ -257,12 +273,14 @@ struct ContentView: View {
         let token = renderToken
         let currentColors = colors
         let currentMetrics = metrics
+        let baseURL = fileURL?.deletingLastPathComponent()
 
         DispatchQueue.global(qos: .userInitiated).async {
             let segments = MarkdownRenderBuilder.buildSegments(
                 document: document,
                 colors: currentColors,
-                metrics: currentMetrics
+                metrics: currentMetrics,
+                baseURL: baseURL
             )
             DispatchQueue.main.async {
                 guard renderToken == token else { return }
@@ -275,6 +293,13 @@ struct ContentView: View {
     private func startLoading() {
         renderToken = UUID()
         isLoading = true
+    }
+
+    private func releaseSecurityScopedAccess() {
+        if let url = securityScopedURL {
+            url.stopAccessingSecurityScopedResource()
+            securityScopedURL = nil
+        }
     }
 
     private func setupThemeShortcutMonitor() {
@@ -300,6 +325,7 @@ struct ContentView: View {
             NSEvent.removeMonitor(monitor)
             themeShortcutMonitor = nil
         }
+        releaseSecurityScopedAccess()
     }
 
     private func cycleTheme() {

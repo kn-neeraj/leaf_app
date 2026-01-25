@@ -5,6 +5,7 @@
 //  Created by Neeraj Kumar on 24/01/26.
 //
 
+import Foundation
 import Markdown
 import SwiftUI
 
@@ -30,8 +31,17 @@ struct RenderSegment: Identifiable {
 
 enum RenderSegmentKind {
     case text(AttributedString)
-    case codeBlock(text: String, language: String?)
+    case codeBlock(text: AttributedString, language: String?)
     case table(RenderTable)
+    case thematicBreak
+    case image(RenderImage)
+}
+
+struct RenderImage {
+    let source: String
+    let resolvedURL: URL?
+    let isRemote: Bool
+    let altText: String
 }
 
 struct RenderTable {
@@ -65,7 +75,8 @@ struct MarkdownRenderBuilder {
     static func buildSegments(
         document: Document,
         colors: LeafTheme.Colors,
-        metrics: LeafTheme.Metrics
+        metrics: LeafTheme.Metrics,
+        baseURL: URL? = nil
     ) -> [RenderSegment] {
         var segments: [RenderSegment] = []
         var currentText = AttributedString()
@@ -109,21 +120,50 @@ struct MarkdownRenderBuilder {
         for child in document.children {
             if let codeBlock = child as? CodeBlock {
                 flushText()
+                let highlighted = highlightedCode(
+                    codeBlock.code,
+                    language: codeBlock.language,
+                    colors: colors,
+                    metrics: metrics
+                )
                 segments.append(
                     RenderSegment(
                         id: nextIdValue(&nextId),
-                        kind: .codeBlock(text: codeBlock.code, language: codeBlock.language),
-                        isInteractive: true
+                        kind: .codeBlock(text: highlighted, language: codeBlock.language),
+                        isInteractive: false
                     )
                 )
             } else if let table = child as? Markdown.Table {
                 flushText()
-                let (renderTable, _) = renderTable(table, colors: colors, metrics: metrics)
+                let (renderTable, hasLink) = renderTable(table, colors: colors, metrics: metrics)
                 segments.append(
                     RenderSegment(
                         id: nextIdValue(&nextId),
                         kind: .table(renderTable),
-                        isInteractive: true
+                        isInteractive: hasLink
+                    )
+                )
+            } else if let paragraph = child as? Paragraph,
+                      let images = imageOnlyParagraph(paragraph) {
+                flushText()
+                for image in images {
+                    if let segment = renderImageSegment(
+                        image,
+                        baseURL: baseURL,
+                        colors: colors,
+                        metrics: metrics,
+                        nextId: &nextId
+                    ) {
+                        segments.append(segment)
+                    }
+                }
+            } else if child is ThematicBreak {
+                flushText()
+                segments.append(
+                    RenderSegment(
+                        id: nextIdValue(&nextId),
+                        kind: .thematicBreak,
+                        isInteractive: false
                     )
                 )
             } else {
@@ -666,5 +706,172 @@ struct MarkdownRenderBuilder {
             attributes.underlineStyle = .single
         }
         attributed.mergeAttributes(attributes)
+    }
+
+    private static func imageOnlyParagraph(_ paragraph: Paragraph) -> [Markdown.Image]? {
+        var images: [Markdown.Image] = []
+        for child in paragraph.children {
+            if let image = child as? Markdown.Image {
+                images.append(image)
+            } else if child is SoftBreak || child is LineBreak {
+                continue
+            } else if let text = child as? Markdown.Text, text.string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                continue
+            } else {
+                return nil
+            }
+        }
+        return images.isEmpty ? nil : images
+    }
+
+    private static func renderImageSegment(
+        _ image: Markdown.Image,
+        baseURL: URL?,
+        colors: LeafTheme.Colors,
+        metrics: LeafTheme.Metrics,
+        nextId: inout Int
+    ) -> RenderSegment? {
+        guard let source = image.source else {
+            return imageFallbackSegment(image, colors: colors, metrics: metrics, nextId: &nextId)
+        }
+        let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
+        let isRemote = trimmed.hasPrefix("http://") || trimmed.hasPrefix("https://")
+        let resolvedURL = resolveImageURL(source: trimmed, baseURL: baseURL)
+        let altText = image.plainText
+        return RenderSegment(
+            id: nextIdValue(&nextId),
+            kind: .image(
+                RenderImage(
+                    source: trimmed,
+                    resolvedURL: resolvedURL,
+                    isRemote: isRemote,
+                    altText: altText
+                )
+            ),
+            isInteractive: false
+        )
+    }
+
+    private static func resolveImageURL(source: String, baseURL: URL?) -> URL? {
+        let trimmed = source.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        if trimmed.hasPrefix("http://") || trimmed.hasPrefix("https://") {
+            return nil
+        }
+        if trimmed.hasPrefix("file://") {
+            return URL(string: trimmed)
+        }
+        if trimmed.hasPrefix("/") {
+            return URL(fileURLWithPath: trimmed)
+        }
+        guard let baseURL else { return nil }
+        return URL(fileURLWithPath: trimmed, relativeTo: baseURL).standardizedFileURL
+    }
+
+    private static func imageFallbackSegment(
+        _ image: Markdown.Image,
+        colors: LeafTheme.Colors,
+        metrics: LeafTheme.Metrics,
+        nextId: inout Int
+    ) -> RenderSegment? {
+        let altText = image.plainText
+        let fallback = altText.isEmpty ? "Image unavailable" : altText
+        var attributed = AttributedString(fallback)
+        applyAttributes(&attributed, style: InlineStyle(isInQuote: false), colors: colors, metrics: metrics)
+        attributed.foregroundColor = colors.secondary
+        return RenderSegment(
+            id: nextIdValue(&nextId),
+            kind: .text(attributed),
+            isInteractive: false
+        )
+    }
+
+    private static func highlightedCode(
+        _ code: String,
+        language: String?,
+        colors: LeafTheme.Colors,
+        metrics: LeafTheme.Metrics
+    ) -> AttributedString {
+        var attributed = AttributedString(code)
+        let baseFont = Font.system(size: metrics.codeFontSize, design: .monospaced)
+        attributed.font = baseFont
+        attributed.foregroundColor = colors.text
+
+        let maxHighlightCharacters = 20000
+        guard code.utf16.count <= maxHighlightCharacters else {
+            return attributed
+        }
+
+        let lowercased = language?.lowercased() ?? ""
+        let usesSlashComments = lowercased.contains("swift")
+            || lowercased.contains("js")
+            || lowercased.contains("javascript")
+            || lowercased.contains("ts")
+            || lowercased.contains("typescript")
+            || lowercased.contains("c")
+            || lowercased.contains("cpp")
+            || lowercased.contains("java")
+        let usesHashComments = lowercased.contains("py")
+            || lowercased.contains("python")
+            || lowercased.contains("sh")
+            || lowercased.contains("bash")
+            || lowercased.contains("shell")
+            || lowercased.contains("zsh")
+        let isJSON = lowercased.contains("json")
+
+        var keywordPattern: String?
+        if lowercased.contains("swift") {
+            keywordPattern = "\\\\b(class|struct|enum|protocol|extension|func|let|var|if|else|for|while|return|import|try|catch|throw|throws|guard|in|do|switch|case|default|break|continue|public|private|internal|open|static|final|defer|where|as|is|nil|true|false)\\\\b"
+        } else if lowercased.contains("js") || lowercased.contains("javascript") || lowercased.contains("ts") || lowercased.contains("typescript") {
+            keywordPattern = "\\\\b(const|let|var|function|return|if|else|for|while|switch|case|break|continue|class|extends|new|try|catch|finally|throw|import|export|from|async|await|true|false|null|undefined)\\\\b"
+        } else if lowercased.contains("py") || lowercased.contains("python") {
+            keywordPattern = "\\\\b(def|class|return|if|elif|else|for|while|try|except|finally|import|from|as|with|lambda|pass|break|continue|True|False|None)\\\\b"
+        } else if lowercased.contains("sh") || lowercased.contains("bash") || lowercased.contains("shell") || lowercased.contains("zsh") {
+            keywordPattern = "\\\\b(if|then|fi|for|in|do|done|case|esac|function|return|exit)\\\\b"
+        } else if isJSON {
+            keywordPattern = nil
+        }
+
+        let keywordColor = colors.accent
+        let stringColor = colors.accent.opacity(0.8)
+        let numberColor = colors.accent.opacity(0.65)
+        let commentColor = colors.secondary
+
+        if let pattern = keywordPattern {
+            applyHighlight(pattern: pattern, to: &attributed, in: code, color: keywordColor)
+        }
+        applyHighlight(pattern: "\\\\b\\\\d+(?:\\\\.\\\\d+)?\\\\b", to: &attributed, in: code, color: numberColor)
+        applyHighlight(pattern: "\"(?:\\\\\\\\.|[^\"\\\\\\\\])*\"", to: &attributed, in: code, color: stringColor)
+        applyHighlight(pattern: "'(?:\\\\\\\\.|[^'\\\\\\\\])*'", to: &attributed, in: code, color: stringColor)
+        if usesSlashComments {
+            applyHighlight(pattern: "//.*", to: &attributed, in: code, color: commentColor, options: [.anchorsMatchLines])
+            applyHighlight(pattern: "/\\\\*[\\\\s\\\\S]*?\\\\*/", to: &attributed, in: code, color: commentColor)
+        }
+        if usesHashComments {
+            applyHighlight(pattern: "#.*", to: &attributed, in: code, color: commentColor, options: [.anchorsMatchLines])
+        }
+
+        return attributed
+    }
+
+    private static func applyHighlight(
+        pattern: String,
+        to attributed: inout AttributedString,
+        in code: String,
+        color: Color,
+        options: NSRegularExpression.Options = []
+    ) {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: options) else {
+            return
+        }
+        let range = NSRange(code.startIndex..<code.endIndex, in: code)
+        for match in regex.matches(in: code, range: range) {
+            guard let stringRange = Range(match.range, in: code),
+                  let start = AttributedString.Index(stringRange.lowerBound, within: attributed),
+                  let end = AttributedString.Index(stringRange.upperBound, within: attributed) else {
+                continue
+            }
+            attributed[start..<end].foregroundColor = color
+        }
     }
 }

@@ -30,7 +30,7 @@
 
 - [x] Code blocks with mono font, subtle background, rounded corners, horizontal scroll
 - [x] Tables with simple readable layout and overflow handling
-- [ ] Images from local/relative paths only (scale to content width, rounded corners)
+- [x] Image placeholders with path + Open/Reveal actions (no inline rendering)
 
 ## Styling polish
 

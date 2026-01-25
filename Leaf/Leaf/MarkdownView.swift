@@ -5,6 +5,7 @@
 //  Created by Neeraj Kumar on 24/01/26.
 //
 
+import AppKit
 import Markdown
 import SwiftUI
 
@@ -54,6 +55,7 @@ struct RenderBlockView: View {
                 Text(text)
                     .lineSpacing(metrics.lineSpacing)
                     .allowsHitTesting(isInteractive)
+                    .linkCursor(isInteractive)
             case .list(let isOrdered, let items):
                 listView(items, isOrdered: isOrdered)
             case .blockQuote(let children):
@@ -76,6 +78,7 @@ struct RenderBlockView: View {
                         .foregroundStyle(colors.accent)
                     Text(item.text)
                         .lineSpacing(metrics.lineSpacing)
+                        .linkCursor(item.isInteractive)
                 }
                 .allowsHitTesting(item.isInteractive)
             }
@@ -124,25 +127,32 @@ struct RenderSegmentView: View {
             Text(text)
                 .lineSpacing(metrics.lineSpacing)
                 .allowsHitTesting(segment.isInteractive)
+                .linkCursor(segment.isInteractive)
         case .codeBlock(let text, _):
             MarkdownCodeBlockView(text: text, colors: colors, metrics: metrics)
         case .table(let table):
             MarkdownTableView(table: table, colors: colors, metrics: metrics)
                 .allowsHitTesting(segment.isInteractive)
+                .linkCursor(segment.isInteractive)
+        case .thematicBreak:
+            Rectangle()
+                .fill(colors.quoteBorder)
+                .frame(height: 1)
+                .allowsHitTesting(false)
+        case .image(let renderImage):
+            MarkdownImageView(renderImage: renderImage, colors: colors, metrics: metrics)
         }
     }
 }
 
 struct MarkdownCodeBlockView: View {
-    let text: String
+    let text: AttributedString
     let colors: LeafTheme.Colors
     let metrics: LeafTheme.Metrics
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: true) {
             Text(text)
-                .font(.system(size: metrics.codeFontSize, design: .monospaced))
-                .foregroundStyle(colors.text)
                 .lineSpacing(max(2, metrics.lineSpacing * 0.6))
                 .textSelection(.enabled)
                 .fixedSize(horizontal: true, vertical: false)
@@ -217,6 +227,109 @@ struct MarkdownTableView: View {
             return .center
         case .right:
             return .trailing
+        }
+    }
+}
+
+struct MarkdownImageView: View {
+    let renderImage: RenderImage
+    let colors: LeafTheme.Colors
+    let metrics: LeafTheme.Metrics
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            RoundedRectangle(cornerRadius: 10 * metrics.scale)
+                .fill(colors.codeBackground)
+                .frame(width: 44 * metrics.scale, height: 44 * metrics.scale)
+                .overlay(
+                    Image(systemName: "photo")
+                        .font(.system(size: 18 * metrics.scale, weight: .semibold))
+                        .foregroundStyle(colors.accent)
+                )
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(displayTitle)
+                    .font(.system(size: metrics.bodyFontSize, weight: .semibold))
+                    .foregroundStyle(colors.text)
+
+                Text(renderImage.source)
+                    .font(.system(size: max(12, metrics.bodyFontSize * 0.8)))
+                    .foregroundStyle(colors.secondary)
+                    .lineLimit(2)
+
+                if let statusText = statusText {
+                    Text(statusText)
+                        .font(.system(size: max(11, metrics.bodyFontSize * 0.75)))
+                        .foregroundStyle(colors.secondary)
+                }
+
+                if let url = renderImage.resolvedURL, !renderImage.isRemote {
+                    Button("Reveal") {
+                        NSWorkspace.shared.activateFileViewerSelecting([url])
+                    }
+                    .font(.system(size: max(12, metrics.bodyFontSize * 0.8), weight: .semibold))
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(colors.accent)
+                }
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(12 * metrics.scale)
+        .background(
+            RoundedRectangle(cornerRadius: 12 * metrics.scale)
+                .fill(colors.codeBackground)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12 * metrics.scale)
+                .stroke(colors.quoteBorder, lineWidth: 1)
+        )
+        .accessibilityLabel(Text(accessibilityLabel))
+    }
+
+    private var displayTitle: String {
+        if !renderImage.altText.isEmpty {
+            return renderImage.altText
+        }
+        let trimmed = renderImage.source.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let url = URL(string: trimmed), url.scheme != nil {
+            return url.lastPathComponent.isEmpty ? "Image" : url.lastPathComponent
+        }
+        let name = (trimmed as NSString).lastPathComponent
+        return name.isEmpty ? "Image" : name
+    }
+
+    private var statusText: String? {
+        if renderImage.isRemote {
+            return "Remote images are blocked."
+        }
+        if renderImage.resolvedURL == nil {
+            return "Image not found."
+        }
+        return nil
+    }
+
+    private var accessibilityLabel: String {
+        if !renderImage.altText.isEmpty {
+            return renderImage.altText
+        }
+        return "Image"
+    }
+}
+
+extension View {
+    @ViewBuilder
+    func linkCursor(_ isEnabled: Bool) -> some View {
+        if isEnabled {
+            self.onHover { hovering in
+                if hovering {
+                    NSCursor.pointingHand.push()
+                } else {
+                    NSCursor.pop()
+                }
+            }
+        } else {
+            self
         }
     }
 }
