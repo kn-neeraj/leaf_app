@@ -22,6 +22,7 @@ struct ContentView: View {
     @State private var selectedThemeID: LeafTheme.ThemeID
     @State private var isThemeSwitcherPresented = false
     @State private var themeShortcutMonitor: Any?
+    @State private var sidebarSelection: UUID?
 #if DEBUG
     @State private var isFpsOverlayVisible = true
 #endif
@@ -53,20 +54,6 @@ struct ContentView: View {
 
     private var selectedDocument: OpenDocument? {
         documentStore.documents.first { $0.id == documentStore.selectedID }
-    }
-
-    private var selectionBinding: Binding<UUID?> {
-        Binding(
-            get: { documentStore.selectedID },
-            set: { newValue in
-                documentStore.select(
-                    id: newValue,
-                    renderKey: renderKey,
-                    colors: colors,
-                    metrics: metrics
-                )
-            }
-        )
     }
 
     var body: some View {
@@ -159,6 +146,20 @@ struct ContentView: View {
                 metrics: metrics
             )
         }
+        .onChange(of: sidebarSelection) { _, newValue in
+            guard newValue != documentStore.selectedID else { return }
+            documentStore.select(
+                id: newValue,
+                renderKey: renderKey,
+                colors: colors,
+                metrics: metrics
+            )
+        }
+        .onChange(of: documentStore.selectedID) { _, newValue in
+            if sidebarSelection != newValue {
+                sidebarSelection = newValue
+            }
+        }
         .onChange(of: selectedThemeID) { _, _ in
             UserDefaults.standard.set(selectedThemeID.rawValue, forKey: Self.themeStorageKey)
             documentStore.refreshSelected(
@@ -178,7 +179,7 @@ struct ContentView: View {
 
     private var sidebarView: some View {
         ZStack {
-            List(selection: selectionBinding) {
+            List(selection: $sidebarSelection) {
                 ForEach(documentStore.documents) { document in
                     SidebarRow(document: document, colors: colors)
                         .tag(document.id)
