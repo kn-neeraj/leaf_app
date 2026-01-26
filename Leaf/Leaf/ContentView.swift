@@ -216,7 +216,14 @@ struct ContentView: View {
                                     .font(.system(size: max(12, metrics.bodyFontSize * 0.875)))
                                     .foregroundStyle(colors.secondary)
                             } else if document.isLoading {
-                                EmptyView()
+                                VStack(spacing: 8) {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                    Text("Loading...")
+                                        .font(.system(size: max(12, metrics.bodyFontSize * 0.875), weight: .semibold))
+                                }
+                                .foregroundStyle(colors.secondary)
+                                .padding(.vertical, 12)
                             } else if document.content.isEmpty {
                                 Text("Empty document.")
                                     .font(.system(size: metrics.bodyFontSize * 1.125, weight: .semibold))
@@ -243,11 +250,6 @@ struct ContentView: View {
                     .padding(.horizontal, 24)
                     Spacer(minLength: 0)
                 }
-            }
-            if selectedDocument?.isLoading == true {
-                LoadingOverlayView(colors: colors, metrics: metrics)
-                    .transition(.opacity)
-                    .zIndex(1)
             }
             if isThemeSwitcherPresented {
                 ThemeSwitcherOverlay(
@@ -344,29 +346,6 @@ struct SidebarRow: View {
         }
         .padding(.vertical, 6)
         .contentShape(Rectangle())
-    }
-}
-
-struct LoadingOverlayView: View {
-    let colors: LeafTheme.Colors
-    let metrics: LeafTheme.Metrics
-
-    var body: some View {
-        ZStack {
-            colors.background.opacity(0.85)
-                .ignoresSafeArea()
-            VStack(spacing: 12) {
-                Image("LeafLoading")
-                    .resizable()
-                    .renderingMode(.original)
-                    .scaledToFit()
-                    .frame(width: 200 * metrics.scale, height: 200 * metrics.scale)
-                Text("Loading...")
-                    .font(.system(size: 14 * metrics.scale, weight: .semibold))
-                    .foregroundStyle(colors.secondary)
-            }
-        }
-        .allowsHitTesting(true)
     }
 }
 

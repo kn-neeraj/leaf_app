@@ -30,6 +30,10 @@ struct LeafTheme {
         case highContrast
         case rosePine
         case tokyoNight
+        case solaceMist
+        case tidalDusk
+        case voltNoir
+        case crimsonCircuit
 
         var id: String { rawValue }
     }
@@ -110,6 +114,58 @@ struct LeafTheme {
                 accent: color(0x7AA2F7),
                 codeBackground: color(0x24283B),
                 quoteBorder: color(0x343B58)
+            ),
+            isDark: true
+        ),
+        Theme(
+            id: .solaceMist,
+            name: "Solace Mist",
+            colors: Colors(
+                background: color(0xF6F0E6),
+                text: color(0x2B2A28),
+                secondary: color(0x6C645B),
+                accent: color(0x3A8FB7),
+                codeBackground: color(0xE9E1D4),
+                quoteBorder: color(0xD8CEBF)
+            ),
+            isDark: false
+        ),
+        Theme(
+            id: .tidalDusk,
+            name: "Tidal Dusk",
+            colors: Colors(
+                background: color(0x1E2A2E),
+                text: color(0xE3E0D8),
+                secondary: color(0xA7B0A7),
+                accent: color(0x4FB3C6),
+                codeBackground: color(0x2A3D43),
+                quoteBorder: color(0x32464E)
+            ),
+            isDark: true
+        ),
+        Theme(
+            id: .voltNoir,
+            name: "Volt Noir",
+            colors: Colors(
+                background: color(0x0B0F14),
+                text: color(0xE7EEF6),
+                secondary: color(0x9AA6B2),
+                accent: color(0xFFD400),
+                codeBackground: color(0x141F2B),
+                quoteBorder: color(0x1A2836)
+            ),
+            isDark: true
+        ),
+        Theme(
+            id: .crimsonCircuit,
+            name: "Crimson Circuit",
+            colors: Colors(
+                background: color(0x0E1116),
+                text: color(0xE9E6E2),
+                secondary: color(0xAFA9A3),
+                accent: color(0xFF2D55),
+                codeBackground: color(0x1A202A),
+                quoteBorder: color(0x232B36)
             ),
             isDark: true
         )
