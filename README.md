@@ -4,10 +4,11 @@
 - Leaf is a macOS app for reading Markdown files in a clean, distraction-free layout.
 - The focus is typography-first reading with fast rendering and minimal chrome.
 - It is intentionally read-only: no editing, exporting, or heavy customization.
+- Built in collaboration with human agent (neeraj) + AI Agent (CodexCLI).
 - Product goals and scope live in `context_space/prd_v1.md`.
 
 ## How it works
-- Video demo (placeholder): [ADD VIDEO LINK OR EMBED HERE]
+- Video demo: [leaf_markdown_reader.mp4](recordings/leaf_markdown_reader.mp4)
 
 ## How to install
 - Build the app (Release) with Xcode: open `Leaf/Leaf.xcodeproj`, select **Leaf** scheme, then **Product → Archive** or **Build** (Release).
