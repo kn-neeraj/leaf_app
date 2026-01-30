@@ -8,7 +8,8 @@
 - Product goals and scope live in `context_space/prd_v1.md`.
 
 ## How it works
-- Video demo: [leaf_markdown_reader.mp4](recordings/leaf_markdown_reader.mp4)
+[Quick Demo](https://www.youtube.com/watch?v=JduYTtYZQ68) 
+
 
 ## How to install
 - Build the app (Release) with Xcode: open `Leaf/Leaf.xcodeproj`, select **Leaf** scheme, then **Product → Archive** or **Build** (Release).
