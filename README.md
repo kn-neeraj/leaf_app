@@ -8,7 +8,8 @@
 - Product goals and scope live in `context_space/prd_v1.md`.
 
 ## How it works
-[Quick Demo](https://www.youtube.com/watch?v=JduYTtYZQ68) 
+[![Watch the quick demo](https://img.youtube.com/vi/JduYTtYZQ68/maxresdefault.jpg)](https://youtu.be/JduYTtYZQ68)
+
 
 
 ## How to install
