@@ -22,6 +22,8 @@ struct ContentView: View {
     @State private var selectedThemeID: LeafTheme.ThemeID
     @State private var isThemeSwitcherPresented = false
     @State private var themeShortcutMonitor: Any?
+    @State private var selectionShortcutMonitor: Any?
+    @State private var isSelectionLocked = false
     @State private var sidebarSelection: UUID?
 #if DEBUG
     @State private var isFpsOverlayVisible = true
@@ -56,6 +58,10 @@ struct ContentView: View {
         documentStore.documents.first { $0.id == documentStore.selectedID }
     }
 
+    private var isSelectionEnabled: Bool {
+        isSelectionLocked
+    }
+
     var body: some View {
         NavigationSplitView {
             sidebarView
@@ -81,6 +87,24 @@ struct ContentView: View {
                 }
                 .help("Open Markdown Files")
                 .keyboardShortcut("o", modifiers: [.command])
+
+                Button(action: toggleSelectionLock) {
+                    Label(isSelectionLocked ? "Select On" : "Select", systemImage: "text.cursor")
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 12, weight: .semibold))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .foregroundStyle(isSelectionLocked ? colors.accent : colors.secondary)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(isSelectionLocked ? colors.accent.opacity(0.16) : Color.clear)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(isSelectionLocked ? colors.accent : colors.quoteBorder, lineWidth: 1)
+                )
+                .help(isSelectionLocked ? "Text selection locked on" : "Lock text selection on (Cmd+C when nothing is selected)")
 
                 Button(action: zoomOut) {
                     Text("A-")
@@ -170,9 +194,11 @@ struct ContentView: View {
         }
         .onAppear {
             setupThemeShortcutMonitor()
+            setupSelectionShortcutMonitor()
         }
         .onDisappear {
             tearDownThemeShortcutMonitor()
+            tearDownSelectionShortcutMonitor()
             documentStore.releaseAllSecurityScopedAccess()
         }
     }
@@ -232,12 +258,14 @@ struct ContentView: View {
                                 MarkdownSegmentedView(
                                     segments: document.segments,
                                     colors: colors,
-                                    metrics: metrics
+                                    metrics: metrics,
+                                    isSelectionEnabled: isSelectionEnabled
                                 )
                             } else {
                                 Text(document.content)
                                     .font(.system(size: metrics.bodyFontSize))
                                     .foregroundStyle(colors.text)
+                                    .conditionalTextSelection(isSelectionEnabled)
                             }
                         } else {
                             Text("Open a Markdown file to begin.")
@@ -251,6 +279,7 @@ struct ContentView: View {
                     Spacer(minLength: 0)
                 }
             }
+            .help("Use the Select button or Cmd+C (when nothing is selected) to toggle text selection.")
             if isThemeSwitcherPresented {
                 ThemeSwitcherOverlay(
                     themes: LeafTheme.themes,
@@ -306,6 +335,43 @@ struct ContentView: View {
             NSEvent.removeMonitor(monitor)
             themeShortcutMonitor = nil
         }
+    }
+
+    private func setupSelectionShortcutMonitor() {
+        guard selectionShortcutMonitor == nil else { return }
+        selectionShortcutMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            let isPlainCommandC =
+                flags == [.command] &&
+                event.charactersIgnoringModifiers?.lowercased() == "c"
+            guard isPlainCommandC else { return event }
+            if hasActiveTextSelectionForCopy() {
+                return event
+            }
+            toggleSelectionLock()
+            return nil
+        }
+    }
+
+    private func tearDownSelectionShortcutMonitor() {
+        if let monitor = selectionShortcutMonitor {
+            NSEvent.removeMonitor(monitor)
+            selectionShortcutMonitor = nil
+        }
+    }
+
+    private func toggleSelectionLock() {
+        isSelectionLocked.toggle()
+    }
+
+    private func hasActiveTextSelectionForCopy() -> Bool {
+        guard let responder = NSApp.keyWindow?.firstResponder else {
+            return false
+        }
+        if let textView = responder as? NSTextView {
+            return textView.selectedRange.length > 0
+        }
+        return false
     }
 
     private func cycleTheme() {
@@ -484,4 +550,15 @@ struct ThemePreviewCard: View {
 
 #Preview {
     ContentView()
+}
+
+private extension View {
+    @ViewBuilder
+    func conditionalTextSelection(_ isEnabled: Bool) -> some View {
+        if isEnabled {
+            self.textSelection(.enabled)
+        } else {
+            self
+        }
+    }
 }

@@ -27,13 +27,20 @@ struct MarkdownSegmentedView: View {
     let segments: [RenderSegment]
     let colors: LeafTheme.Colors
     let metrics: LeafTheme.Metrics
+    let isSelectionEnabled: Bool
 
     var body: some View {
         LazyVStack(alignment: .leading, spacing: metrics.paragraphSpacing) {
             ForEach(segments) { segment in
-                RenderSegmentView(segment: segment, colors: colors, metrics: metrics)
+                RenderSegmentView(
+                    segment: segment,
+                    colors: colors,
+                    metrics: metrics,
+                    isSelectionEnabled: isSelectionEnabled
+                )
             }
         }
+        .conditionalTextSelection(isSelectionEnabled)
     }
 }
 
@@ -120,20 +127,27 @@ struct RenderSegmentView: View {
     let segment: RenderSegment
     let colors: LeafTheme.Colors
     let metrics: LeafTheme.Metrics
+    let isSelectionEnabled: Bool
 
     var body: some View {
         switch segment.kind {
         case .text(let text):
             Text(text)
                 .lineSpacing(metrics.lineSpacing)
-                .allowsHitTesting(segment.isInteractive)
-                .linkCursor(segment.isInteractive)
+                .conditionalTextSelection(isSelectionEnabled)
+                .allowsHitTesting(isSelectionEnabled || segment.isInteractive)
+                .linkCursor(segment.isInteractive && !isSelectionEnabled)
         case .codeBlock(let text, _):
             MarkdownCodeBlockView(text: text, colors: colors, metrics: metrics)
         case .table(let table):
-            MarkdownTableView(table: table, colors: colors, metrics: metrics)
-                .allowsHitTesting(segment.isInteractive)
-                .linkCursor(segment.isInteractive)
+            MarkdownTableView(
+                table: table,
+                colors: colors,
+                metrics: metrics,
+                isSelectionEnabled: isSelectionEnabled
+            )
+            .allowsHitTesting(isSelectionEnabled || segment.isInteractive)
+            .linkCursor(segment.isInteractive && !isSelectionEnabled)
         case .thematicBreak:
             Rectangle()
                 .fill(colors.quoteBorder)
@@ -170,6 +184,7 @@ struct MarkdownTableView: View {
     let table: RenderTable
     let colors: LeafTheme.Colors
     let metrics: LeafTheme.Metrics
+    let isSelectionEnabled: Bool
 
     private var columnCount: Int {
         let headerCount = table.header.count
@@ -205,6 +220,7 @@ struct MarkdownTableView: View {
                 let text = column < cells.count ? cells[column] : AttributedString("")
                 Text(text)
                     .lineSpacing(max(2, metrics.lineSpacing * 0.6))
+                    .conditionalTextSelection(isSelectionEnabled)
                     .frame(maxWidth: .infinity, alignment: alignment)
                     .padding(.vertical, 8 * metrics.scale)
                     .padding(.horizontal, 10 * metrics.scale)
@@ -328,6 +344,17 @@ extension View {
                     NSCursor.pop()
                 }
             }
+        } else {
+            self
+        }
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func conditionalTextSelection(_ isEnabled: Bool) -> some View {
+        if isEnabled {
+            self.textSelection(.enabled)
         } else {
             self
         }
