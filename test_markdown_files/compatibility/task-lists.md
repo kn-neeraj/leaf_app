@@ -1,0 +1,3 @@
+- [x] Ship renderer tests
+- [ ] Add nested list fixtures
+- [x] Verify local images
