@@ -7,7 +7,7 @@ Reviewed on 2026-03-29 against the current codebase and `docs/`.
 | Build stability | B | ✅ | Fresh `xcodebuild` succeeds; project still has an `Info.plist` copy-phase warning |
 | Test coverage | B | ✅ | Unit coverage now exists for parser, renderer, file store, sidebar state, and markdown fixtures; UI suite is still brittle |
 | Markdown rendering | B+ | ✅ | Core reader coverage is stronger, with explicit compatibility docs, fixtures, and better fallback behavior |
-| Sidebar | B | ✅ | Multi-file open/select/close works; no persistence or richer file management |
+| Sidebar | B+ | ✅ | Multi-file open/select/close works, with themed selection styling, keyboard navigation, and a more intentional shell; still no persistence or richer file management |
 | Syntax highlighting | C | ⚠️ | Present, but regex-based and shallow |
 | Accessibility | D | ❌ | A few labels and shortcuts exist; no clear accessibility pass or validation |
 | Architecture compliance | B | ✅ | Mostly follows the documented layer split; `ContentView` is getting heavy |
@@ -33,9 +33,9 @@ Reviewed on 2026-03-29 against the current codebase and `docs/`.
 - There is now an explicit compatibility contract in `docs/design-docs/architecture-notes/markdown_compatibility_matrix.md`.
 - Weak spots: inline images stay fallback-level, remote images remain blocked, and HTML/math/diagram content is still outside the native render scope.
 
-### Sidebar — B
+### Sidebar — B+
 
-- Implemented: multi-select open, sidebar list, active selection, duplicate-open reuse, close, neighbor reselection, per-file security scope.
+- Implemented: multi-select open, sidebar list, active selection, duplicate-open reuse, close, neighbor reselection, per-file security scope, themed selected-row styling, sidebar keyboard navigation, and menu-discoverable shell controls for sidebar visibility and text sizing.
 - Missing: persistence, reorder, pinning, grouping.
 
 ### Syntax highlighting — C
@@ -46,7 +46,7 @@ Reviewed on 2026-03-29 against the current codebase and `docs/`.
 
 ### Accessibility — D
 
-- Present: some keyboard shortcuts, selectable text, accessibility label on image placeholders.
+- Present: some keyboard shortcuts, selectable text, accessibility label on image placeholders, and native menu-bar discoverability for core shell shortcuts.
 - Missing: accessibility identifiers, clear VoiceOver review, focus-order review, broader semantic/accessibility annotations.
 
 ### Architecture compliance — B

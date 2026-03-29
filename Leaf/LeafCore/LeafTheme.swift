@@ -10,11 +10,16 @@ import SwiftUI
 public struct LeafTheme {
     public struct Colors {
         public let background: Color
+        public let sidebarBackground: Color
         public let text: Color
         public let secondary: Color
         public let accent: Color
         public let codeBackground: Color
         public let quoteBorder: Color
+        public let chromeSurface: Color
+        public let chromeBorder: Color
+        public let selectionFill: Color
+        public let selectionBorder: Color
     }
 
     public struct Theme: Identifiable {
@@ -57,11 +62,16 @@ public struct LeafTheme {
             name: "Ember Linen",
             colors: Colors(
                 background: color(0xF9F7F3),
+                sidebarBackground: color(0xF4F0EA),
                 text: color(0x2C2C2E),
                 secondary: color(0x6E6E73),
                 accent: color(0xE05656),
                 codeBackground: color(0xEFECEA),
-                quoteBorder: color(0xE0DDD8)
+                quoteBorder: color(0xE0DDD8),
+                chromeSurface: color(0xF5F1EC),
+                chromeBorder: color(0xD9D4CC),
+                selectionFill: color(0xE05656, opacity: 0.10),
+                selectionBorder: color(0xE05656, opacity: 0.32)
             ),
             isDark: false
         ),
@@ -70,11 +80,16 @@ public struct LeafTheme {
             name: "Night Slate",
             colors: Colors(
                 background: color(0x1C1D20),
+                sidebarBackground: color(0x181A1D),
                 text: color(0xE7E7E7),
                 secondary: color(0x9AA0A6),
                 accent: color(0x58A6FF),
                 codeBackground: color(0x26282C),
-                quoteBorder: color(0x333843)
+                quoteBorder: color(0x333843),
+                chromeSurface: color(0x23262B),
+                chromeBorder: color(0x323843),
+                selectionFill: color(0x58A6FF, opacity: 0.16),
+                selectionBorder: color(0x58A6FF, opacity: 0.38)
             ),
             isDark: true
         ),
@@ -83,11 +98,16 @@ public struct LeafTheme {
             name: "Paper Bright",
             colors: Colors(
                 background: color(0xFFFFFF),
+                sidebarBackground: color(0xF7F7F8),
                 text: color(0x111111),
                 secondary: color(0x4B4B4B),
                 accent: color(0x2F7AFF),
                 codeBackground: color(0xF2F2F2),
-                quoteBorder: color(0xD0D0D0)
+                quoteBorder: color(0xD0D0D0),
+                chromeSurface: color(0xF6F7F9),
+                chromeBorder: color(0xD8DCE3),
+                selectionFill: color(0x2F7AFF, opacity: 0.10),
+                selectionBorder: color(0x2F7AFF, opacity: 0.30)
             ),
             isDark: false
         ),
@@ -96,11 +116,16 @@ public struct LeafTheme {
             name: "Velvet Plum",
             colors: Colors(
                 background: color(0x1F1D2E),
+                sidebarBackground: color(0x1B1A29),
                 text: color(0xE0DEF4),
                 secondary: color(0x908CAA),
                 accent: color(0xEB6F92),
                 codeBackground: color(0x26233A),
-                quoteBorder: color(0x3C3854)
+                quoteBorder: color(0x3C3854),
+                chromeSurface: color(0x242136),
+                chromeBorder: color(0x3A3652),
+                selectionFill: color(0xEB6F92, opacity: 0.18),
+                selectionBorder: color(0xEB6F92, opacity: 0.42)
             ),
             isDark: true
         ),
@@ -109,11 +134,16 @@ public struct LeafTheme {
             name: "Indigo Metro",
             colors: Colors(
                 background: color(0x1A1B26),
+                sidebarBackground: color(0x171923),
                 text: color(0xC0CAF5),
                 secondary: color(0x9AA5CE),
                 accent: color(0x7AA2F7),
                 codeBackground: color(0x24283B),
-                quoteBorder: color(0x343B58)
+                quoteBorder: color(0x343B58),
+                chromeSurface: color(0x23273A),
+                chromeBorder: color(0x343B58),
+                selectionFill: color(0x7AA2F7, opacity: 0.17),
+                selectionBorder: color(0x7AA2F7, opacity: 0.40)
             ),
             isDark: true
         ),
@@ -122,11 +152,16 @@ public struct LeafTheme {
             name: "Solace Mist",
             colors: Colors(
                 background: color(0xF6F0E6),
+                sidebarBackground: color(0xF1E8DB),
                 text: color(0x2B2A28),
                 secondary: color(0x6C645B),
                 accent: color(0x3A8FB7),
                 codeBackground: color(0xE9E1D4),
-                quoteBorder: color(0xD8CEBF)
+                quoteBorder: color(0xD8CEBF),
+                chromeSurface: color(0xEEE5D8),
+                chromeBorder: color(0xD5C8B7),
+                selectionFill: color(0x3A8FB7, opacity: 0.11),
+                selectionBorder: color(0x3A8FB7, opacity: 0.28)
             ),
             isDark: false
         ),
@@ -135,11 +170,16 @@ public struct LeafTheme {
             name: "Tidal Dusk",
             colors: Colors(
                 background: color(0x1E2A2E),
+                sidebarBackground: color(0x1A2528),
                 text: color(0xE3E0D8),
                 secondary: color(0xA7B0A7),
                 accent: color(0x4FB3C6),
                 codeBackground: color(0x2A3D43),
-                quoteBorder: color(0x32464E)
+                quoteBorder: color(0x32464E),
+                chromeSurface: color(0x25373C),
+                chromeBorder: color(0x344A52),
+                selectionFill: color(0x4FB3C6, opacity: 0.16),
+                selectionBorder: color(0x4FB3C6, opacity: 0.34)
             ),
             isDark: true
         ),
@@ -148,11 +188,16 @@ public struct LeafTheme {
             name: "Volt Noir",
             colors: Colors(
                 background: color(0x0B0F14),
+                sidebarBackground: color(0x090D12),
                 text: color(0xE7EEF6),
                 secondary: color(0x9AA6B2),
                 accent: color(0xFFD400),
                 codeBackground: color(0x141F2B),
-                quoteBorder: color(0x1A2836)
+                quoteBorder: color(0x1A2836),
+                chromeSurface: color(0x101924),
+                chromeBorder: color(0x223243),
+                selectionFill: color(0xFFD400, opacity: 0.16),
+                selectionBorder: color(0xFFD400, opacity: 0.38)
             ),
             isDark: true
         ),
@@ -161,11 +206,16 @@ public struct LeafTheme {
             name: "Crimson Circuit",
             colors: Colors(
                 background: color(0x0E1116),
+                sidebarBackground: color(0x0B0E13),
                 text: color(0xE9E6E2),
                 secondary: color(0xAFA9A3),
                 accent: color(0xFF2D55),
                 codeBackground: color(0x1A202A),
-                quoteBorder: color(0x232B36)
+                quoteBorder: color(0x232B36),
+                chromeSurface: color(0x141A23),
+                chromeBorder: color(0x27303C),
+                selectionFill: color(0xFF2D55, opacity: 0.17),
+                selectionBorder: color(0xFF2D55, opacity: 0.40)
             ),
             isDark: true
         )

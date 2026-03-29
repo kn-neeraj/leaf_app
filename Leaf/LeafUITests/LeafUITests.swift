@@ -37,7 +37,7 @@ final class LeafUITests: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.staticTexts["leaf-ui-test.md"].waitForExistence(timeout: 5))
-        XCTAssertFalse(app.staticTexts["Open a Markdown file to begin."].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["emptyStateHero"].exists)
         XCTAssertFalse(app.staticTexts["Unable to open file."].exists)
     }
 
@@ -56,5 +56,15 @@ final class LeafUITests: XCTestCase {
 
         toggle.click()
         XCTAssertEqual(toggle.value as? String, "off")
+    }
+
+    @MainActor
+    func testEmptyStateOpenButtonAppearsOnLaunch() throws {
+        let app = XCUIApplication()
+        app.launchArguments.append("--ui-testing")
+        app.launch()
+
+        XCTAssertTrue(app.buttons["emptyStateOpenButton"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["Reading stack"].exists)
     }
 }

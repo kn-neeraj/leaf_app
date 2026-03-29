@@ -10,6 +10,10 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct ContentView: View {
+    private enum FocusTarget: Hashable {
+        case sidebar
+    }
+
     private static let themeStorageKey = "leaf.selectedThemeID"
     private static let uiTestLaunchArgument = "--ui-testing"
     private static let uiTestOpenFileEnvKey = "LEAF_UI_TEST_OPEN_FILE"
@@ -22,14 +26,18 @@ struct ContentView: View {
 
     @StateObject private var documentStore: DocumentStore
     @StateObject private var sidebarViewModel: SidebarViewModel
+    @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
     @State private var zoomScale: CGFloat = 1.0
     @State private var isFileImporterPresented = false
     @State private var selectedThemeID: LeafTheme.ThemeID
     @State private var isThemeSwitcherPresented = false
+    @State private var isKeyboardShortcutsPresented = false
     @State private var themeShortcutMonitor: Any?
     @State private var selectionShortcutMonitor: Any?
+    @State private var sidebarShortcutMonitor: Any?
     @State private var isSelectionLocked = false
     @State private var didApplyUITestLaunchState = false
+    @FocusState private var focusedPane: FocusTarget?
 #if DEBUG
     @State private var isFpsOverlayVisible = true
 #endif
@@ -68,8 +76,23 @@ struct ContentView: View {
         isSelectionLocked
     }
 
+    private var isSidebarVisible: Bool {
+        columnVisibility != .detailOnly
+    }
+
+    private var commandContext: LeafCommandContext {
+        LeafCommandContext(
+            isSidebarVisible: isSidebarVisible,
+            toggleSidebar: toggleSidebar,
+            openThemes: openThemeSwitcher,
+            showKeyboardShortcuts: openKeyboardShortcuts,
+            zoomIn: zoomIn,
+            zoomOut: zoomOut
+        )
+    }
+
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             sidebarView
         } detail: {
             detailView
@@ -82,60 +105,64 @@ struct ContentView: View {
             NSWorkspace.shared.open(url)
             return .handled
         })
+        .focusedSceneValue(\.leafCommandContext, commandContext)
         .toolbar {
             ToolbarItem(placement: .principal) {
-                Text(selectedDocument?.displayName ?? "Untitled")
-                    .font(.headline)
-                    .foregroundStyle(colors.text)
+                LeafToolbarTitleView(
+                    documentTitle: selectedDocument?.displayName,
+                    colors: colors
+                )
             }
-            ToolbarItemGroup(placement: .automatic) {
-                Button(action: openFile) {
-                    Image(systemName: "folder")
-                }
-                .help("Open Markdown Files")
-                .keyboardShortcut("o", modifiers: [.command])
+            ToolbarItem(placement: .automatic) {
+                HStack(spacing: 8) {
+                    LeafChromeGroup(colors: colors) {
+                        LeafToolbarChromeButton(colors: colors, isActive: false, action: openFile, accessibilityIdentifier: nil, accessibilityValue: nil) {
+                            Image(systemName: "folder")
+                        }
+                        .help(UICopy.Toolbar.openFilesHelp)
+                        .keyboardShortcut("o", modifiers: [.command])
 
-                Button(action: toggleSelectionLock) {
-                    Label(isSelectionLocked ? "Select On" : "Select", systemImage: "text.cursor")
-                }
-                .buttonStyle(.plain)
-                .font(.system(size: 12, weight: .semibold))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 5)
-                .foregroundStyle(isSelectionLocked ? colors.accent : colors.secondary)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(isSelectionLocked ? colors.accent.opacity(0.16) : Color.clear)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(isSelectionLocked ? colors.accent : colors.quoteBorder, lineWidth: 1)
-                )
-                .help(isSelectionLocked ? "Text selection locked on" : "Lock text selection on (Cmd+C when nothing is selected)")
-                .accessibilityIdentifier("copyModeToggle")
-                .accessibilityValue(CopyModeState.accessibilityValue(isEnabled: isSelectionLocked))
+                        LeafToolbarChromeButton(colors: colors, isActive: isThemeSwitcherPresented, action: toggleThemeSwitcher, accessibilityIdentifier: nil, accessibilityValue: nil) {
+                            Image(systemName: "swatchpalette")
+                        }
+                        .help(UICopy.Toolbar.themeHelp)
 
-                Button(action: zoomOut) {
-                    Text("A-")
-                }
-                .help("Zoom Out")
+                        LeafToolbarChromeButton(
+                            colors: colors,
+                            isActive: isSelectionLocked,
+                            action: toggleSelectionLock,
+                            accessibilityIdentifier: "copyModeToggle",
+                            accessibilityValue: CopyModeState.accessibilityValue(isEnabled: isSelectionLocked)
+                        ) {
+                            Label(UICopy.Toolbar.selectionLabel(isLocked: isSelectionLocked), systemImage: "text.cursor")
+                                .labelStyle(.titleAndIcon)
+                        }
+                        .help(UICopy.Toolbar.selectionHelp(isLocked: isSelectionLocked))
+                    }
 
-                Button(action: zoomIn) {
-                    Text("A+")
+                    LeafChromeGroup(colors: colors) {
+                        LeafToolbarChromeButton(colors: colors, isActive: false, action: zoomOut, accessibilityIdentifier: nil, accessibilityValue: nil) {
+                            Text(UICopy.Toolbar.zoomOut)
+                        }
+                        .help(UICopy.Toolbar.zoomOutHelp)
+
+                        LeafToolbarChromeButton(colors: colors, isActive: false, action: zoomIn, accessibilityIdentifier: nil, accessibilityValue: nil) {
+                            Text(UICopy.Toolbar.zoomIn)
+                        }
+                        .help(UICopy.Toolbar.zoomInHelp)
+                    }
                 }
-                .help("Zoom In")
             }
 #if DEBUG
             ToolbarItem(placement: .automatic) {
-                Button(action: { isFpsOverlayVisible.toggle() }) {
+                LeafToolbarChromeButton(colors: colors, isActive: isFpsOverlayVisible, action: { isFpsOverlayVisible.toggle() }, accessibilityIdentifier: nil, accessibilityValue: nil) {
                     Image(systemName: "speedometer")
                 }
-                .help("Toggle FPS Overlay")
+                .help(UICopy.Toolbar.fpsOverlayHelp)
                 .keyboardShortcut("f", modifiers: [.command, .shift])
             }
 #endif
         }
-        .tint(colors.accent)
 #if DEBUG
         .overlay(alignment: .topTrailing) {
             if isFpsOverlayVisible {
@@ -163,6 +190,10 @@ struct ContentView: View {
             case .failure:
                 break
             }
+        }
+        .sheet(isPresented: $isKeyboardShortcutsPresented) {
+            KeyboardShortcutsSheet(theme: theme)
+                .frame(width: 540, height: 448)
         }
         .onOpenURL { url in
             documentStore.open(
@@ -201,41 +232,72 @@ struct ContentView: View {
                 metrics: metrics
             )
         }
+        .onChange(of: columnVisibility) { _, newValue in
+            if newValue == .detailOnly {
+                focusedPane = nil
+            }
+        }
         .onAppear {
             setupThemeShortcutMonitor()
             setupSelectionShortcutMonitor()
+            setupSidebarShortcutMonitor()
             applyUITestLaunchStateIfNeeded()
         }
         .onDisappear {
             tearDownThemeShortcutMonitor()
             tearDownSelectionShortcutMonitor()
+            tearDownSidebarShortcutMonitor()
             documentStore.releaseAllSecurityScopedAccess()
         }
     }
 
     private var sidebarView: some View {
-        ZStack {
-            List(selection: $sidebarViewModel.selectedDocumentID) {
-                ForEach(documentStore.documents) { document in
-                    SidebarRow(document: document, colors: colors)
-                        .tag(document.id)
-                        .contextMenu {
-                            Button("Close") {
-                                documentStore.close(id: document.id)
+        Group {
+            if documentStore.documents.isEmpty {
+                SidebarEmptyStateView(colors: colors)
+            } else {
+                ScrollViewReader { proxy in
+                    List {
+                        ForEach(documentStore.documents) { document in
+                            SidebarRow(
+                                document: document,
+                                colors: colors,
+                                isSelected: sidebarViewModel.selectedDocumentID == document.id
+                            )
+                            .id(document.id)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 10, bottom: 4, trailing: 10))
+                            .listRowBackground(Color.clear)
+                            .onTapGesture {
+                                focusedPane = .sidebar
+                                sidebarViewModel.select(document.id)
+                            }
+                            .contextMenu {
+                                Button(UICopy.Sidebar.closeAction) {
+                                    documentStore.close(id: document.id)
+                                }
                             }
                         }
+                    }
+                    .focusable()
+                    .focused($focusedPane, equals: .sidebar)
+                    .onChange(of: sidebarViewModel.selectedDocumentID) { _, newValue in
+                        guard let newValue else { return }
+                        withAnimation(.easeOut(duration: 0.18)) {
+                            proxy.scrollTo(newValue, anchor: .center)
+                        }
+                    }
+                    .simultaneousGesture(
+                        TapGesture().onEnded {
+                            focusedPane = .sidebar
+                        }
+                    )
                 }
-            }
-            .listStyle(.sidebar)
-            .scrollContentBackground(.hidden)
-
-            if documentStore.documents.isEmpty {
-                Text("No open files")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(colors.secondary)
+                .listStyle(.sidebar)
+                .scrollContentBackground(.hidden)
+                .background(colors.sidebarBackground)
             }
         }
-        .background(colors.background)
+        .background(colors.sidebarBackground)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("sidebar")
     }
@@ -244,56 +306,20 @@ struct ContentView: View {
         ZStack(alignment: .trailing) {
             colors.background
                 .ignoresSafeArea()
-            ScrollView {
-                HStack {
-                    Spacer(minLength: 0)
-                    VStack(alignment: .leading, spacing: metrics.paragraphSpacing) {
-                        if let document = selectedDocument {
-                            if let statusMessage = document.statusMessage {
-                                Text(statusMessage)
-                                    .font(.system(size: max(12, metrics.bodyFontSize * 0.875)))
-                                    .foregroundStyle(colors.secondary)
-                            } else if document.isLoading {
-                                VStack(spacing: 8) {
-                                    ProgressView()
-                                        .controlSize(.small)
-                                    Text("Loading...")
-                                        .font(.system(size: max(12, metrics.bodyFontSize * 0.875), weight: .semibold))
-                                }
-                                .foregroundStyle(colors.secondary)
-                                .padding(.vertical, 12)
-                            } else if document.content.isEmpty {
-                                Text("Empty document.")
-                                    .font(.system(size: metrics.bodyFontSize * 1.125, weight: .semibold))
-                                    .foregroundStyle(colors.secondary)
-                            } else if document.parsed != nil {
-                                MarkdownSegmentedView(
-                                    segments: document.segments,
-                                    colors: colors,
-                                    metrics: metrics,
-                                    isSelectionEnabled: isSelectionEnabled
-                                )
-                            } else {
-                                Text(document.content)
-                                    .font(.system(size: metrics.bodyFontSize))
-                                    .foregroundStyle(colors.text)
-                                    .conditionalTextSelection(isSelectionEnabled)
-                            }
-                        } else {
-                            Text("Open a Markdown file to begin.")
-                                .font(.system(size: metrics.bodyFontSize * 1.125, weight: .semibold))
-                                .foregroundStyle(colors.secondary)
-                        }
-                    }
-                    .frame(maxWidth: metrics.contentMaxWidth, alignment: .leading)
-                    .padding(.vertical, metrics.verticalPadding)
-                    .padding(.horizontal, 24)
-                    Spacer(minLength: 0)
+            Group {
+                if let document = selectedDocument {
+                    documentDetailView(document)
+                } else {
+                    ReaderEmptyStateView(
+                        theme: theme,
+                        metrics: metrics,
+                        openAction: openFile
+                    )
                 }
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("preview")
-            .help("Use the Select button or Cmd+C (when nothing is selected) to toggle text selection.")
+            .help(UICopy.Reader.selectionHelp)
             if isThemeSwitcherPresented {
                 ThemeSwitcherOverlay(
                     themes: LeafTheme.themes,
@@ -305,6 +331,63 @@ struct ContentView: View {
                 .padding(.trailing, 24)
                 .transition(.move(edge: .trailing).combined(with: .opacity))
                 .zIndex(2)
+            }
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if let selectedDocument {
+                ReaderSubheaderView(
+                    colors: colors,
+                    documentTitle: selectedDocument.displayName
+                )
+            }
+        }
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                focusedPane = nil
+            }
+        )
+    }
+
+    private func documentDetailView(_ document: OpenDocument) -> some View {
+        ScrollView {
+            HStack {
+                Spacer(minLength: 0)
+                VStack(alignment: .leading, spacing: metrics.paragraphSpacing) {
+                    if let statusMessage = document.statusMessage {
+                        Text(statusMessage)
+                            .font(.system(size: max(12, metrics.bodyFontSize * 0.875)))
+                            .foregroundStyle(colors.secondary)
+                    } else if document.isLoading {
+                        VStack(spacing: 8) {
+                            ProgressView()
+                                .controlSize(.small)
+                            Text(UICopy.Reader.loading)
+                                .font(.system(size: max(12, metrics.bodyFontSize * 0.875), weight: .semibold))
+                        }
+                        .foregroundStyle(colors.secondary)
+                        .padding(.vertical, 12)
+                    } else if document.content.isEmpty {
+                        Text(UICopy.Reader.emptyDocument)
+                            .font(.system(size: metrics.bodyFontSize * 1.125, weight: .semibold))
+                            .foregroundStyle(colors.secondary)
+                    } else if document.parsed != nil {
+                        MarkdownSegmentedView(
+                            segments: document.segments,
+                            colors: colors,
+                            metrics: metrics,
+                            isSelectionEnabled: isSelectionEnabled
+                        )
+                    } else {
+                        Text(document.content)
+                            .font(.system(size: metrics.bodyFontSize))
+                            .foregroundStyle(colors.text)
+                            .conditionalTextSelection(isSelectionEnabled)
+                    }
+                }
+                .frame(maxWidth: metrics.contentMaxWidth, alignment: .leading)
+                .padding(.vertical, metrics.verticalPadding)
+                .padding(.horizontal, 24)
+                Spacer(minLength: 0)
             }
         }
     }
@@ -324,22 +407,48 @@ struct ContentView: View {
     private func setupThemeShortcutMonitor() {
         guard themeShortcutMonitor == nil else { return }
         themeShortcutMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            guard !isKeyboardShortcutsPresented else { return event }
+            let inertFlags: NSEvent.ModifierFlags = [.numericPad]
+            let flags = event.modifierFlags
+                .intersection(.deviceIndependentFlagsMask)
+                .subtracting(inertFlags)
             let isTabKey = event.keyCode == 48
-            let hasDisallowedModifier = flags.contains(.command) || flags.contains(.option) || flags.contains(.control)
+            let isPlainTab = isTabKey && flags.isEmpty
+            let isShiftTab = isTabKey && flags == [.shift]
             let isReturnKey = event.keyCode == 36 || event.keyCode == 76
-            if isTabKey, flags.contains(.shift), !hasDisallowedModifier {
-                isThemeSwitcherPresented.toggle()
+            let characters = event.charactersIgnoringModifiers ?? ""
+
+            if isShiftTab {
+                toggleThemeSwitcher()
                 return nil
             }
-            if isThemeSwitcherPresented, isReturnKey, !hasDisallowedModifier {
-                isThemeSwitcherPresented = false
-                return nil
-            }
-            if isThemeSwitcherPresented, isTabKey, !hasDisallowedModifier {
+
+            if isThemeSwitcherPresented, isPlainTab {
                 cycleTheme()
                 return nil
             }
+
+            if isPlainTab {
+                toggleSidebar()
+                return nil
+            }
+
+            if isThemeSwitcherPresented, isReturnKey, flags.isEmpty {
+                isThemeSwitcherPresented = false
+                return nil
+            }
+
+            if flags == [.command] || flags == [.command, .shift] {
+                if characters == "=" {
+                    zoomIn()
+                    return nil
+                }
+                if characters == "-" {
+                    zoomOut()
+                    return nil
+                }
+            }
+
             return event
         }
     }
@@ -374,6 +483,35 @@ struct ContentView: View {
         }
     }
 
+    private func setupSidebarShortcutMonitor() {
+        guard sidebarShortcutMonitor == nil else { return }
+        sidebarShortcutMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            guard isSidebarVisible, !isThemeSwitcherPresented, !isKeyboardShortcutsPresented else { return event }
+
+            let allowedFlags: NSEvent.ModifierFlags = [.numericPad, .function]
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            guard flags.subtracting(allowedFlags).isEmpty else { return event }
+
+            switch event.keyCode {
+            case 126:
+                moveSidebarSelection(offset: -1)
+                return nil
+            case 125:
+                moveSidebarSelection(offset: 1)
+                return nil
+            default:
+                return event
+            }
+        }
+    }
+
+    private func tearDownSidebarShortcutMonitor() {
+        if let monitor = sidebarShortcutMonitor {
+            NSEvent.removeMonitor(monitor)
+            sidebarShortcutMonitor = nil
+        }
+    }
+
     private func toggleSelectionLock() {
         isSelectionLocked = CopyModeState.toggled(from: isSelectionLocked)
     }
@@ -390,6 +528,34 @@ struct ContentView: View {
 
     private func cycleTheme() {
         selectedThemeID = ThemeSelection.nextThemeID(after: selectedThemeID)
+    }
+
+    private func toggleThemeSwitcher() {
+        isThemeSwitcherPresented.toggle()
+        if isThemeSwitcherPresented {
+            focusedPane = nil
+        }
+    }
+
+    private func openThemeSwitcher() {
+        isThemeSwitcherPresented = true
+        focusedPane = nil
+    }
+
+    private func openKeyboardShortcuts() {
+        isThemeSwitcherPresented = false
+        isKeyboardShortcutsPresented = true
+        focusedPane = nil
+    }
+
+    private func toggleSidebar() {
+        let willShowSidebar = !isSidebarVisible
+        withAnimation(.easeOut(duration: 0.18)) {
+            columnVisibility = willShowSidebar ? .all : .detailOnly
+        }
+        if !willShowSidebar {
+            focusedPane = nil
+        }
     }
 
     private func applyUITestLaunchStateIfNeeded() {
@@ -426,34 +592,68 @@ struct ContentView: View {
             metrics: metrics
         )
     }
+
+    private func moveSidebarSelection(offset: Int) {
+        let documentIDs = documentStore.documents.map(\.id)
+        guard !documentIDs.isEmpty else { return }
+
+        let baseIndex: Int
+        if let selectedID = sidebarViewModel.selectedDocumentID,
+           let currentIndex = documentIDs.firstIndex(of: selectedID) {
+            baseIndex = currentIndex
+        } else {
+            baseIndex = offset > 0 ? -1 : documentIDs.count
+        }
+
+        let nextIndex = min(max(baseIndex + offset, 0), documentIDs.count - 1)
+        let nextID = documentIDs[nextIndex]
+        if nextID != sidebarViewModel.selectedDocumentID {
+            sidebarViewModel.select(nextID)
+        }
+    }
 }
 
 struct SidebarRow: View {
     let document: OpenDocument
     let colors: LeafTheme.Colors
+    let isSelected: Bool
 
     var body: some View {
         HStack(spacing: 10) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(isSelected ? colors.accent : .clear)
+                .frame(width: 3, height: 28)
+
             VStack(alignment: .leading, spacing: 4) {
                 Text(document.displayName)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(colors.text)
                 Text(document.locationName)
                     .font(.system(size: 11))
-                    .foregroundStyle(colors.secondary)
+                    .foregroundStyle(isSelected ? colors.text.opacity(0.72) : colors.secondary)
                     .lineLimit(1)
             }
             Spacer(minLength: 0)
             if document.isLoading {
                 ProgressView()
                     .controlSize(.mini)
+                    .tint(colors.accent)
             } else if document.statusMessage != nil {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(colors.secondary)
+                    .foregroundStyle(isSelected ? colors.accent : colors.secondary)
             }
         }
+        .padding(.horizontal, 10)
         .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(isSelected ? colors.chromeSurface : .clear)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(isSelected ? colors.chromeBorder : .clear, lineWidth: 1)
+        )
         .contentShape(Rectangle())
     }
 }
@@ -466,11 +666,11 @@ struct ThemeSwitcherOverlay: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                Text("Themes")
+                Text(UICopy.ThemeSwitcher.title)
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(panelColors.text)
                 Spacer()
-                Button("Done") {
+                Button(UICopy.ThemeSwitcher.done) {
                     isPresented = false
                 }
                 .font(.system(size: 13, weight: .semibold))
@@ -568,13 +768,13 @@ struct ThemePreviewCard: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                (Text("Lorem ipsum ") + Text("dolor sit amet,").fontWeight(.semibold))
+                (Text(UICopy.ThemeSwitcher.previewLineOneLeading) + Text(UICopy.ThemeSwitcher.previewLineOneStrong).fontWeight(.semibold))
                     .foregroundStyle(theme.colors.text)
-                Text("consectetur adipiscing elit. Mauris")
+                Text(UICopy.ThemeSwitcher.previewLineTwo)
                     .foregroundStyle(theme.colors.secondary)
-                (Text("iaculis ").foregroundStyle(theme.colors.secondary)
-                    + Text("semper").foregroundStyle(theme.colors.accent)
-                    + Text(" pharetra.").foregroundStyle(theme.colors.secondary))
+                (Text(UICopy.ThemeSwitcher.previewLineThreeLeading).foregroundStyle(theme.colors.secondary)
+                    + Text(UICopy.ThemeSwitcher.previewLineThreeAccent).foregroundStyle(theme.colors.accent)
+                    + Text(UICopy.ThemeSwitcher.previewLineThreeTrailing).foregroundStyle(theme.colors.secondary))
             }
             .font(.system(size: 12))
             .lineLimit(3)

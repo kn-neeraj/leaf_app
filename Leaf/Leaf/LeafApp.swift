@@ -14,5 +14,8 @@ struct LeafApp: App {
             ContentView()
         }
         .defaultSize(width: 900, height: 700)
+        .commands {
+            LeafAppCommands()
+        }
     }
 }
