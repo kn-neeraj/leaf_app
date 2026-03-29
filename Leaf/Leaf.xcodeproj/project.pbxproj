@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		99535046FF73469DBB68C2F3 /* Markdown in Frameworks */ = {isa = PBXBuildFile; productRef = DED002F2DD1B485687CA5C17 /* Markdown */; };
+		A1A1A0042F24F2AF001CAEF4 /* Markdown in Frameworks */ = {isa = PBXBuildFile; productRef = A1A1A0612F24F2AF001CAEF4 /* Markdown */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -49,6 +50,11 @@
 			path = LeafUITests;
 			sourceTree = "<group>";
 		};
+		A1A1A0212F24F2AF001CAEF4 /* LeafCore */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = LeafCore;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -64,6 +70,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A1A1A0042F24F2AF001CAEF4 /* Markdown in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -81,6 +88,7 @@
 			isa = PBXGroup;
 			children = (
 				540C67632F24F2AF001CAEF4 /* Leaf */,
+				A1A1A0212F24F2AF001CAEF4 /* LeafCore */,
 				540C67722F24F2B2001CAEF4 /* LeafTests */,
 				540C677C2F24F2B2001CAEF4 /* LeafUITests */,
 				540C67622F24F2AF001CAEF4 /* Products */,
@@ -114,6 +122,7 @@
 			);
 			fileSystemSynchronizedGroups = (
 				540C67632F24F2AF001CAEF4 /* Leaf */,
+				A1A1A0212F24F2AF001CAEF4 /* LeafCore */,
 			);
 			name = Leaf;
 			packageProductDependencies = (
@@ -134,13 +143,14 @@
 			buildRules = (
 			);
 			dependencies = (
-				540C67712F24F2B2001CAEF4 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				540C67722F24F2B2001CAEF4 /* LeafTests */,
+				A1A1A0212F24F2AF001CAEF4 /* LeafCore */,
 			);
 			name = LeafTests;
 			packageProductDependencies = (
+				A1A1A0612F24F2AF001CAEF4 /* Markdown */,
 			);
 			productName = LeafTests;
 			productReference = 540C676F2F24F2B2001CAEF4 /* LeafTests.xctest */;
@@ -184,7 +194,6 @@
 					};
 					540C676E2F24F2B2001CAEF4 = {
 						CreatedOnToolsVersion = 16.4;
-						TestTargetID = 540C67602F24F2AF001CAEF4;
 					};
 					540C67782F24F2B2001CAEF4 = {
 						CreatedOnToolsVersion = 16.4;
@@ -456,36 +465,40 @@
 		540C67872F24F2B2001CAEF4 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = TRT3PVLWHT;
 				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@loader_path/../Frameworks",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.kneeraj.LeafTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Leaf.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Leaf";
 			};
 			name = Debug;
 		};
 		540C67882F24F2B2001CAEF4 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = TRT3PVLWHT;
 				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@loader_path/../Frameworks",
+				);
 				MACOSX_DEPLOYMENT_TARGET = 15.5;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.kneeraj.LeafTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Leaf.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Leaf";
 			};
 			name = Release;
 		};
@@ -575,6 +588,11 @@
 
 /* Begin XCSwiftPackageProductDependency section */
 		DED002F2DD1B485687CA5C17 /* Markdown */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = AF85687055334C5A8B82711F /* XCRemoteSwiftPackageReference "swift-markdown" */;
+			productName = Markdown;
+		};
+		A1A1A0612F24F2AF001CAEF4 /* Markdown */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = AF85687055334C5A8B82711F /* XCRemoteSwiftPackageReference "swift-markdown" */;
 			productName = Markdown;

@@ -193,6 +193,16 @@ struct MarkdownTableView: View {
         return max(headerCount, rowCount, alignmentCount)
     }
 
+    private var columnWidths: [CGFloat] {
+        (0..<columnCount).map(preferredWidthForColumn)
+    }
+
+    private var totalTableWidth: CGFloat {
+        let dividerWidth = CGFloat(max(0, columnCount - 1))
+        let horizontalPadding = CGFloat(columnCount) * (20 * metrics.scale)
+        return columnWidths.reduce(0, +) + dividerWidth + horizontalPadding
+    }
+
     var body: some View {
         ScrollView(.horizontal, showsIndicators: true) {
             VStack(spacing: 0) {
@@ -204,6 +214,7 @@ struct MarkdownTableView: View {
                     tableRow(table.rows[index], isHeader: false)
                 }
             }
+            .frame(width: totalTableWidth, alignment: .leading)
             .background(colors.codeBackground)
             .clipShape(RoundedRectangle(cornerRadius: 8 * metrics.scale))
             .overlay(
@@ -214,17 +225,9 @@ struct MarkdownTableView: View {
     }
 
     private func tableRow(_ cells: [AttributedString], isHeader: Bool) -> some View {
-        HStack(spacing: 0) {
+        HStack(alignment: .top, spacing: 0) {
             ForEach(0..<columnCount, id: \.self) { column in
-                let alignment = alignmentForColumn(column)
-                let text = column < cells.count ? cells[column] : AttributedString("")
-                Text(text)
-                    .lineSpacing(max(2, metrics.lineSpacing * 0.6))
-                    .conditionalTextSelection(isSelectionEnabled)
-                    .frame(maxWidth: .infinity, alignment: alignment)
-                    .padding(.vertical, 8 * metrics.scale)
-                    .padding(.horizontal, 10 * metrics.scale)
-                    .background(isHeader ? colors.codeBackground.opacity(0.6) : Color.clear)
+                tableCell(cells, column: column, isHeader: isHeader)
                 if column < columnCount - 1 {
                     Rectangle()
                         .fill(colors.quoteBorder)
@@ -232,6 +235,31 @@ struct MarkdownTableView: View {
                 }
             }
         }
+    }
+
+    private func tableCell(_ cells: [AttributedString], column: Int, isHeader: Bool) -> some View {
+        let alignment = alignmentForColumn(column)
+        let textAlignment = textAlignmentForColumn(column)
+        let text = column < cells.count ? String(cells[column].characters) : ""
+        let lineSpacing = max(2, metrics.lineSpacing * 0.6)
+        let width = columnWidths[column]
+        let background = isHeader ? colors.codeBackground.opacity(0.6) : Color.clear
+        let fontWeight: Font.Weight = isHeader ? .semibold : .regular
+
+        return VStack(alignment: horizontalAlignment(for: alignment), spacing: 0) {
+            Text(verbatim: text)
+                .font(.system(size: metrics.bodyFontSize, weight: fontWeight))
+                .foregroundStyle(colors.text)
+                .lineSpacing(lineSpacing)
+                .lineLimit(nil)
+                .multilineTextAlignment(textAlignment)
+                .conditionalTextSelection(isSelectionEnabled)
+                .frame(maxWidth: .infinity, alignment: alignment)
+        }
+        .frame(width: width, alignment: alignment)
+        .padding(.vertical, 8 * metrics.scale)
+        .padding(.horizontal, 10 * metrics.scale)
+        .background(background)
     }
 
     private func alignmentForColumn(_ column: Int) -> Alignment {
@@ -243,6 +271,76 @@ struct MarkdownTableView: View {
             return .center
         case .right:
             return .trailing
+        }
+    }
+
+    private func textAlignmentForColumn(_ column: Int) -> TextAlignment {
+        guard column < table.alignments.count else { return .leading }
+        switch table.alignments[column] ?? .left {
+        case .left:
+            return .leading
+        case .center:
+            return .center
+        case .right:
+            return .trailing
+        }
+    }
+
+    private func preferredWidthForColumn(_ column: Int) -> CGFloat {
+        let contents = ([table.header] + table.rows).map { row -> String in
+            guard column < row.count else { return "" }
+            return String(row[column].characters)
+        }
+        let wrapCap = 320 * metrics.scale
+        let minWidth = max(120 * metrics.scale, metrics.bodyFontSize * 6)
+
+        let measuredCells = contents
+            .map { text in
+                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                let fullWidth = measureTableTextWidth(trimmed)
+                let longestTokenWidth = trimmed
+                    .split(whereSeparator: \.isWhitespace)
+                    .map(String.init)
+                    .map(measureTableTextWidth)
+                    .max() ?? fullWidth
+                let containsWhitespace = trimmed.contains { $0.isWhitespace }
+                return (
+                    fullWidth: fullWidth,
+                    longestTokenWidth: longestTokenWidth,
+                    containsWhitespace: containsWhitespace
+                )
+            }
+
+        let widestToken = measuredCells.map(\.longestTokenWidth).max() ?? 0
+        let widestFullCell = measuredCells.map(\.fullWidth).max() ?? 0
+        let hasLongProse = measuredCells.contains { $0.containsWhitespace && $0.fullWidth > wrapCap }
+
+        let contentWidth: CGFloat
+        if hasLongProse {
+            contentWidth = max(widestToken, min(widestFullCell, wrapCap))
+        } else {
+            contentWidth = max(widestToken, widestFullCell)
+        }
+
+        return max(contentWidth, minWidth)
+    }
+
+    private func measureTableTextWidth(_ text: String) -> CGFloat {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return 0 }
+
+        let font = NSFont.systemFont(ofSize: metrics.bodyFontSize)
+        return ceil((trimmed as NSString).size(withAttributes: [.font: font]).width)
+    }
+
+    private func horizontalAlignment(for alignment: Alignment) -> HorizontalAlignment {
+        switch alignment {
+        case .center:
+            return .center
+        case .trailing:
+            return .trailing
+        default:
+            return .leading
         }
     }
 }

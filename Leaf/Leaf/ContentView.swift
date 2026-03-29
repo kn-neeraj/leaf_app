@@ -11,12 +11,17 @@ import UniformTypeIdentifiers
 
 struct ContentView: View {
     private static let themeStorageKey = "leaf.selectedThemeID"
+    private static let uiTestLaunchArgument = "--ui-testing"
+    private static let uiTestOpenFileEnvKey = "LEAF_UI_TEST_OPEN_FILE"
+    private static let uiTestFileNameEnvKey = "LEAF_UI_TEST_FILE_NAME"
+    private static let uiTestFileContentsEnvKey = "LEAF_UI_TEST_FILE_CONTENTS"
     private let allowedTypes: [UTType] = [
         UTType(filenameExtension: "md") ?? .plainText,
         .plainText
     ]
 
-    @StateObject private var documentStore = DocumentStore()
+    @StateObject private var documentStore: DocumentStore
+    @StateObject private var sidebarViewModel: SidebarViewModel
     @State private var zoomScale: CGFloat = 1.0
     @State private var isFileImporterPresented = false
     @State private var selectedThemeID: LeafTheme.ThemeID
@@ -24,18 +29,19 @@ struct ContentView: View {
     @State private var themeShortcutMonitor: Any?
     @State private var selectionShortcutMonitor: Any?
     @State private var isSelectionLocked = false
-    @State private var sidebarSelection: UUID?
+    @State private var didApplyUITestLaunchState = false
 #if DEBUG
     @State private var isFpsOverlayVisible = true
 #endif
 
-    init() {
-        if let stored = UserDefaults.standard.string(forKey: Self.themeStorageKey),
-           let id = LeafTheme.ThemeID(rawValue: stored) {
-            _selectedThemeID = State(initialValue: id)
-        } else {
-            _selectedThemeID = State(initialValue: LeafTheme.defaultThemeID)
-        }
+    init(
+        documentStore: DocumentStore = DocumentStore(),
+        sidebarViewModel: SidebarViewModel = SidebarViewModel()
+    ) {
+        _documentStore = StateObject(wrappedValue: documentStore)
+        _sidebarViewModel = StateObject(wrappedValue: sidebarViewModel)
+        let storedTheme = UserDefaults.standard.string(forKey: Self.themeStorageKey)
+        _selectedThemeID = State(initialValue: ThemeSelection.initialThemeID(storedRawValue: storedTheme))
     }
 
     private var theme: LeafTheme.Theme {
@@ -68,6 +74,7 @@ struct ContentView: View {
         } detail: {
             detailView
         }
+        .accessibilityIdentifier("mainWindow")
         .frame(minWidth: 700, minHeight: 500)
         .preferredColorScheme(theme.isDark ? .dark : .light)
         .animation(.easeOut(duration: 0.35), value: isThemeSwitcherPresented)
@@ -105,6 +112,8 @@ struct ContentView: View {
                         .stroke(isSelectionLocked ? colors.accent : colors.quoteBorder, lineWidth: 1)
                 )
                 .help(isSelectionLocked ? "Text selection locked on" : "Lock text selection on (Cmd+C when nothing is selected)")
+                .accessibilityIdentifier("copyModeToggle")
+                .accessibilityValue(CopyModeState.accessibilityValue(isEnabled: isSelectionLocked))
 
                 Button(action: zoomOut) {
                     Text("A-")
@@ -170,7 +179,7 @@ struct ContentView: View {
                 metrics: metrics
             )
         }
-        .onChange(of: sidebarSelection) { _, newValue in
+        .onChange(of: sidebarViewModel.selectedDocumentID) { _, newValue in
             guard newValue != documentStore.selectedID else { return }
             documentStore.select(
                 id: newValue,
@@ -180,8 +189,8 @@ struct ContentView: View {
             )
         }
         .onChange(of: documentStore.selectedID) { _, newValue in
-            if sidebarSelection != newValue {
-                sidebarSelection = newValue
+            if sidebarViewModel.selectedDocumentID != newValue {
+                sidebarViewModel.select(newValue)
             }
         }
         .onChange(of: selectedThemeID) { _, _ in
@@ -195,6 +204,7 @@ struct ContentView: View {
         .onAppear {
             setupThemeShortcutMonitor()
             setupSelectionShortcutMonitor()
+            applyUITestLaunchStateIfNeeded()
         }
         .onDisappear {
             tearDownThemeShortcutMonitor()
@@ -205,7 +215,7 @@ struct ContentView: View {
 
     private var sidebarView: some View {
         ZStack {
-            List(selection: $sidebarSelection) {
+            List(selection: $sidebarViewModel.selectedDocumentID) {
                 ForEach(documentStore.documents) { document in
                     SidebarRow(document: document, colors: colors)
                         .tag(document.id)
@@ -226,6 +236,8 @@ struct ContentView: View {
             }
         }
         .background(colors.background)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("sidebar")
     }
 
     private var detailView: some View {
@@ -279,6 +291,8 @@ struct ContentView: View {
                     Spacer(minLength: 0)
                 }
             }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("preview")
             .help("Use the Select button or Cmd+C (when nothing is selected) to toggle text selection.")
             if isThemeSwitcherPresented {
                 ThemeSwitcherOverlay(
@@ -361,7 +375,7 @@ struct ContentView: View {
     }
 
     private func toggleSelectionLock() {
-        isSelectionLocked.toggle()
+        isSelectionLocked = CopyModeState.toggled(from: isSelectionLocked)
     }
 
     private func hasActiveTextSelectionForCopy() -> Bool {
@@ -375,13 +389,42 @@ struct ContentView: View {
     }
 
     private func cycleTheme() {
-        let themeIDs = LeafTheme.themes.map(\.id)
-        guard let index = themeIDs.firstIndex(of: selectedThemeID), !themeIDs.isEmpty else {
-            selectedThemeID = LeafTheme.defaultThemeID
-            return
+        selectedThemeID = ThemeSelection.nextThemeID(after: selectedThemeID)
+    }
+
+    private func applyUITestLaunchStateIfNeeded() {
+        guard !didApplyUITestLaunchState else { return }
+        didApplyUITestLaunchState = true
+
+        let processInfo = ProcessInfo.processInfo
+        guard processInfo.arguments.contains(Self.uiTestLaunchArgument) else { return }
+        let environment = processInfo.environment
+
+        let url: URL?
+        if let path = environment[Self.uiTestOpenFileEnvKey], !path.isEmpty {
+            let candidate = URL(fileURLWithPath: path)
+            url = FileManager.default.fileExists(atPath: candidate.path) ? candidate : nil
+        } else if let contents = environment[Self.uiTestFileContentsEnvKey], !contents.isEmpty {
+            let fileName = environment[Self.uiTestFileNameEnvKey] ?? "leaf-ui-test.md"
+            let candidate = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+            do {
+                try contents.write(to: candidate, atomically: true, encoding: .utf8)
+                url = candidate
+            } catch {
+                url = nil
+            }
+        } else {
+            url = nil
         }
-        let nextIndex = (index + 1) % themeIDs.count
-        selectedThemeID = themeIDs[nextIndex]
+
+        guard let url else { return }
+
+        documentStore.open(
+            urls: [url],
+            renderKey: renderKey,
+            colors: colors,
+            metrics: metrics
+        )
     }
 }
 
@@ -451,6 +494,7 @@ struct ThemeSwitcherOverlay: View {
                             }
                             .buttonStyle(.plain)
                             .id(theme.id)
+                            .accessibilityIdentifier("theme-\(theme.id.rawValue)")
                         }
                     }
                 }
@@ -465,6 +509,7 @@ struct ThemeSwitcherOverlay: View {
         .onExitCommand {
             isPresented = false
         }
+        .accessibilityIdentifier("themeSwitcher")
         .padding(20)
         .background(
             RoundedRectangle(cornerRadius: 16)

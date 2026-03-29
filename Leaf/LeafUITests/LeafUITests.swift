@@ -1,41 +1,60 @@
-//
-//  LeafUITests.swift
-//  LeafUITests
-//
-//  Created by Neeraj Kumar on 24/01/26.
-//
-
 import XCTest
 
 final class LeafUITests: XCTestCase {
-
     override func setUpWithError() throws {
-        // Put setup code here. This method is called before the invocation of each test method in the class.
-
-        // In UI tests it is usually best to stop immediately when a failure occurs.
         continueAfterFailure = false
-
-        // In UI tests it’s important to set the initial state - such as interface orientation - required for your tests before they run. The setUp method is a good place to do this.
-    }
-
-    override func tearDownWithError() throws {
-        // Put teardown code here. This method is called after the invocation of each test method in the class.
     }
 
     @MainActor
-    func testExample() throws {
-        // UI tests must launch the application that they test.
+    func testMainWindowAppearsOnLaunch() throws {
         let app = XCUIApplication()
+        app.launchArguments.append("--ui-testing")
         app.launch()
 
-        // Use XCTAssert and related functions to verify your tests produce the correct results.
+        XCTAssertTrue(app.windows.firstMatch.waitForExistence(timeout: 5))
     }
 
     @MainActor
-    func testLaunchPerformance() throws {
-        // This measures how long it takes to launch your application.
-        measure(metrics: [XCTApplicationLaunchMetric()]) {
-            XCUIApplication().launch()
-        }
+    func testSidebarAndPreviewExistInAccessibilityTree() throws {
+        let app = XCUIApplication()
+        app.launchArguments.append("--ui-testing")
+        app.launch()
+
+        XCTAssertTrue(app.descendants(matching: .any)["sidebar"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["preview"].waitForExistence(timeout: 5))
+    }
+
+    @MainActor
+    func testFixtureLoadsIntoReader() throws {
+        let app = XCUIApplication()
+        app.launchArguments.append("--ui-testing")
+        app.launchEnvironment["LEAF_UI_TEST_FILE_NAME"] = "leaf-ui-test.md"
+        app.launchEnvironment["LEAF_UI_TEST_FILE_CONTENTS"] = """
+        # Fixture Heading
+
+        This fixture is used by Leaf UI tests.
+        """
+        app.launch()
+
+        XCTAssertTrue(app.staticTexts["leaf-ui-test.md"].waitForExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Open a Markdown file to begin."].exists)
+        XCTAssertFalse(app.staticTexts["Unable to open file."].exists)
+    }
+
+    @MainActor
+    func testCopyModeToggleButtonChangesState() throws {
+        let app = XCUIApplication()
+        app.launchArguments.append("--ui-testing")
+        app.launch()
+
+        let toggle = app.buttons.matching(identifier: "copyModeToggle").firstMatch
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        XCTAssertEqual(toggle.value as? String, "off")
+
+        toggle.click()
+        XCTAssertEqual(toggle.value as? String, "on")
+
+        toggle.click()
+        XCTAssertEqual(toggle.value as? String, "off")
     }
 }
